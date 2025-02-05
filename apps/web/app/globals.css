@@ -1,21 +1,38 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer utilities {
+  .bg-theme {
+    background-color: var(--background);
   }
 }
+
+:root {
+  --background: #0d0d0d;
+  --foreground: #ffffff;
+  --modalBackground: #151414;
+}
+/* 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0d0d0d;
+  --foreground: #ffffff;
+  }
+} */
 
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+}
+/* Apply background and text color for autofill */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  background-color: #27272a !important; /* Dark background */
+  color: #ffffff !important; /* White text */
+  -webkit-text-fill-color: #ffffff !important; /* Ensures text stays white */
+  -webkit-box-shadow: 0 0 0px 1000px #27272a inset !important;
+  transition: background-color 5000s ease-in-out 0s;
 }

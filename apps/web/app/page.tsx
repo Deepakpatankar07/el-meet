@@ -1,9 +1,10 @@
-import {Button} from "@repo/ui/shadcnButton"
+import LandingPage from "@/components/LandingPage";
+import NavPage from "@/components/NavPage";
+
 export default function Home() {
   return (
-    <div className="flex justify-center">
-      hii there !!!
-      <Button>send</Button>
-    </div>
+    <>
+      <LandingPage />
+    </>
   );
 }
