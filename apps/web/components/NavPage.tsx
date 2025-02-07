@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { SiLens } from "react-icons/si";
 import { PrimaryButton } from "./buttons/PrimaryButton";
 import Logo from "./Logo";
 

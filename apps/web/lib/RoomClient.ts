@@ -1,0 +1,645 @@
+import { EventEmitter } from 'events';
+import { ProducerOptions } from 'mediasoup-client/lib/types';
+
+
+const mediaType = {
+  audio: 'audio',
+  video: 'video',
+  screen: 'screen',
+} as const;
+
+type MediaType = keyof typeof mediaType;
+
+type EventTypes =
+  | 'exitRoom'
+  | 'openRoom'
+  | 'startVideo'
+  | 'stopVideo'
+  | 'startAudio'
+  | 'stopAudio'
+  | 'startScreen'
+  | 'stopScreen';
+
+const _EVENTS: Record<EventTypes, EventTypes> = {
+  exitRoom: 'exitRoom',
+  openRoom: 'openRoom',
+  startVideo: 'startVideo',
+  stopVideo: 'stopVideo',
+  startAudio: 'startAudio',
+  stopAudio: 'stopAudio',
+  startScreen: 'startScreen',
+  stopScreen: 'stopScreen',
+};
+
+
+interface Socket {
+  request(event: string, payload?: any): Promise<any>;
+  emit(event: string, payload?: any): void;
+  on(event: string, callback: (data: any) => void): void;
+  off(event: string, callback?: (data: any) => void): void;
+}
+
+interface MediasoupClient {
+  Device: any;
+}
+
+export default class RoomClient extends EventEmitter {
+  private name: string;
+  private localMediaEl: HTMLElement;
+  private remoteVideoEl: HTMLElement;
+  private remoteAudioEl: HTMLElement;
+  private mediasoupClient: MediasoupClient;
+  private socket: Socket;
+  private producerTransport: any;
+  private consumerTransport: any;
+  private device: any;
+  private room_id: string;
+  private isVideoOnFullScreen: boolean = false;
+  private isDevicesVisible: boolean = false;
+  private consumers: Map<string, any> = new Map();
+  private producers: Map<string, any> = new Map();
+  private producerLabel: Map<string, string> = new Map();
+  private _isOpen: boolean = false;
+  private eventListeners: Map<string, Array<() => void>> = new Map();
+  private onAddLocalMedia?: (element: HTMLVideoElement | HTMLAudioElement) => void;
+  private onRemoveLocalMedia?: (elementId: string) => void;
+  private onAddRemoteMedia?: (element: HTMLVideoElement | HTMLAudioElement) => void;
+  private onRemoveRemoteMedia?: (elementId: string) => void;
+
+  constructor(
+    localMediaEl: HTMLElement,
+    remoteVideoEl: HTMLElement,
+    remoteAudioEl: HTMLElement,
+    mediasoupClient: MediasoupClient,
+    socket: Socket,
+    room_id: string,
+    name: string,
+    successCallback: () => void,
+    onAddLocalMedia?: (element: HTMLVideoElement | HTMLAudioElement) => void,
+    onRemoveLocalMedia?: (elementId: string) => void,
+    onAddRemoteMedia?: (element: HTMLVideoElement | HTMLAudioElement) => void,
+    onRemoveRemoteMedia?: (elementId: string) => void
+  ) {
+    super();
+    this.name = name;
+    this.localMediaEl = localMediaEl;
+    this.remoteVideoEl = remoteVideoEl;
+    this.remoteAudioEl = remoteAudioEl;
+    this.mediasoupClient = mediasoupClient;
+    this.socket = socket;
+    this.room_id = room_id;
+    this.onAddLocalMedia = onAddLocalMedia;
+    this.onRemoveLocalMedia = onRemoveLocalMedia;
+    this.onAddRemoteMedia = onAddRemoteMedia;
+    this.onRemoveRemoteMedia = onRemoveRemoteMedia;
+
+    console.log(`RoomClient initialized with room_id: ${this.room_id}`);
+
+    Object.keys(_EVENTS).forEach((evt) => {
+      this.eventListeners.set(evt as EventTypes, []);
+    });
+
+    this.createRoom(room_id).then(async () => {
+      await this.join(name, room_id);
+      this.initSockets();
+      this._isOpen = true;
+      successCallback();
+    });
+  }
+
+  ////////// INIT /////////
+  private async createRoom(room_id: string): Promise<void> {
+    if (!room_id) {
+      console.error("Error: Trying to create a room with undefined room_id");
+      return;
+    }
+
+    console.log(`Creating room with ID: ${room_id}`);
+
+    try {
+      await this.socket.request('createRoom', { room_id });
+      console.log(`Room ${room_id} created successfully`);
+    } catch (err) {
+      console.error('Create room error:', err);
+    }
+  }
+
+  private async join(name: string, room_id: string): Promise<void> {
+    this.socket
+      .request('join', { name, room_id })
+      .then(async (e) => {
+        console.log('Joined to room', e);
+
+        const data = await this.socket.request('getRouterRtpCapabilities');
+        console.log('getRouterRtpCapabilities:', data);
+
+        const device = await this.loadDevice(data);
+        console.log("device", device);
+
+        this.device = device;
+        const res = await this.initTransports(device);
+        console.log("initTransports response:", res);
+        
+        this.socket.emit('getProducers');
+      })
+      .catch((err) => {
+        console.log('Join error:', err);
+      });
+  }
+
+  private async loadDevice(routerRtpCapabilities: any): Promise<any> {
+    let device;
+    try {
+      device = new this.mediasoupClient.Device();
+    } catch (error: any) {
+      if (error.name === 'UnsupportedError') {
+        console.error('Browser not supported');
+        alert('Browser not supported');
+      }
+      console.error(error);
+    }
+    await device.load({ routerRtpCapabilities });
+    return device;
+  }
+
+  private async initTransports(device: any): Promise<void> {
+    // Initialize producerTransport
+    {
+      const data = await this.socket.request('createWebRtcTransport', {
+        forceTcp: false,
+        rtpCapabilities: device.rtpCapabilities,
+      });
+      console.log("createWebRtcTransport data:", data);
+      if (data.error) {
+        console.error("createWebRtcTransport data error:", data.error);
+        return;
+      }
+  
+      this.producerTransport = device.createSendTransport(data);
+
+      this.producerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
+        try {
+          await this.socket.request('connectTransport', {
+            dtlsParameters,
+            transport_id: data.id,
+          });
+          callback();
+        } catch (err) {
+          errback(err);
+        }
+      });
+
+      this.producerTransport.on('produce', async ({ kind, rtpParameters }: any, callback: any, errback: any) => {
+        try {
+          const { producer_id } = await this.socket.request('produce', {
+            producerTransportId: this.producerTransport.id,
+            kind,
+            rtpParameters,
+          });
+          callback({ id: producer_id });
+        } catch (err) {
+          errback(err);
+        }
+      });
+
+     
+      this.producerTransport.on('connectionstatechange', (state: string) => {
+        switch (state) {
+          case 'connecting':
+            break;
+  
+          case 'connected':
+            break;
+  
+          case 'failed':
+            this.producerTransport!.close();
+            break;
+  
+          default:
+            break;
+        }
+      });
+    }
+  
+    // Initialize consumerTransport
+    {
+      const data = await this.socket.request('createWebRtcTransport', {
+        forceTcp: false,
+      });
+  
+      if (data.error) {
+        console.error(data.error);
+        return;
+      }
+  
+      this.consumerTransport = device.createRecvTransport(data);
+
+      this.consumerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
+        try {
+          await this.socket.request('connectTransport', {
+            dtlsParameters,
+            transport_id: data.id,
+          });
+          callback();
+        } catch (err) {
+          errback(err);
+        }
+      });
+  
+      this.consumerTransport.on('connectionstatechange', (state: string) => {
+        switch (state) {
+          case 'connecting':
+            break;
+  
+          case 'connected':
+            break;
+  
+          case 'failed':
+            this.consumerTransport!.close();
+            break;
+  
+          default:
+            break;
+        }
+      });
+    }
+  }
+
+  private initSockets(): void {
+    this.socket.on('consumerClosed', ({ consumer_id }) => {
+      console.log('Closing consumer:', consumer_id);
+      this.removeConsumer(consumer_id);
+    });
+
+    this.socket.on('newProducers', async (data) => {
+      console.log('New producers', data);
+      for (const { producer_id } of data) {
+        await this.consume(producer_id);
+      }
+    });
+
+    this.socket.on('disconnect', () => {
+      this.exit(true);
+    });
+  }
+  
+
+  //////// MAIN FUNCTIONS /////////////
+
+  public async produce(type: string, deviceId: string | null = null): Promise<void> {
+    let mediaConstraints: MediaStreamConstraints = {};
+    let audio = false;
+    let screen = false;
+    switch (type) {
+      case mediaType.audio:
+        mediaConstraints = {
+          audio: { deviceId: deviceId as string },
+          video: false,
+        };
+        audio = true;
+        break;
+      case mediaType.video:
+        mediaConstraints = {
+          audio: false,
+          video: {
+            width: { min: 640, ideal: 1920 },
+            height: { min: 400, ideal: 1080 },
+            deviceId: deviceId as string,
+          },
+        };
+        break;
+      case mediaType.screen:
+        mediaConstraints = {};
+        screen = true;
+        break;
+      default:
+        console.error('Unrecognized media type:', type);
+        return;
+    }
+
+    if (!this.device?.canProduce('video') && !audio) {
+      console.error('Cannot produce video');
+      return;
+    }
+
+    if (this.producerLabel.has(type)) {
+      console.log('Producer already exists for this type ' + type);
+      return;
+    }
+
+    console.log('Mediacontraints:', mediaConstraints);
+    let stream: MediaStream;
+    try {
+      try {
+        stream = screen
+          ? await navigator.mediaDevices.getDisplayMedia()
+          : await navigator.mediaDevices.getUserMedia(mediaConstraints);
+      } catch (error) {
+        console.error("Failed to access media devices:", error);
+        return;
+      }
+      console.log(navigator.mediaDevices.getSupportedConstraints());
+
+      const track = audio ? stream.getAudioTracks()[0] : stream.getVideoTracks()[0];
+      const params: ProducerOptions = { track };
+
+      console.log("Params:", params);
+
+      if (!audio && !screen) {
+        params.encodings = [
+          { rid: 'r0', maxBitrate: 100000, scalabilityMode: 'S1T3' },
+          { rid: 'r1', maxBitrate: 300000, scalabilityMode: 'S1T3' },
+          { rid: 'r2', maxBitrate: 900000, scalabilityMode: 'S1T3' },
+        ];
+        params.codecOptions = { videoGoogleStartBitrate: 1000 };
+      }
+
+      if (!this.producerTransport) {
+        throw new Error("this producerTransport is null");
+      }
+
+      console.log("this.producerTransport", this.producerTransport);
+      const producer = await this.producerTransport.produce(params);
+      if (!producer) {
+        throw new Error("No producer present !!");
+      }
+
+      console.log('Producer', producer);
+
+      this.producers.set(producer.id, producer);
+
+      let elem: HTMLVideoElement | HTMLAudioElement;
+
+      if (!audio) {
+        elem = document.createElement('video');
+        elem.srcObject = stream;
+        elem.id = producer.id;
+        elem.autoplay = true;
+        elem.className = 'vid';
+  
+        if (elem instanceof HTMLVideoElement) {
+          elem.playsInline = false;
+        }
+  
+        if (this.onAddLocalMedia) {
+          this.onAddLocalMedia(elem);
+        }
+      }
+      
+
+      // Cleanup function to avoid duplicate code
+      const cleanup = () => {
+        console.log('Cleaning up producer:', producer.id);
+
+        if (elem && elem instanceof HTMLVideoElement && elem.srcObject instanceof MediaStream) {
+          elem.srcObject.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+          elem.parentNode?.removeChild(elem);
+        }
+
+        this.producers.delete(producer.id);
+      };
+
+      producer.on('trackended', cleanup);
+      producer.on('transportclose', cleanup);
+      producer.on('close', cleanup);
+
+      this.producerLabel.set(type, producer.id);
+
+      // Trigger the right event
+      switch (type) {
+        case mediaType.audio:
+          this.event(_EVENTS.startAudio);
+          break;
+        case mediaType.video:
+          this.event(_EVENTS.startVideo);
+          break;
+        case mediaType.screen:
+          this.event(_EVENTS.startScreen);
+          break;
+        default:
+          return;
+      }
+
+    } catch (err) {
+      console.log('Produce error:', err);
+    }
+  }
+
+
+  public async consume(producer_id: string): Promise<void> {
+    this.getConsumeStream(producer_id).then(({ consumer, stream, kind }) => {
+      this.consumers.set(consumer.id, consumer);
+
+      let elem: HTMLVideoElement | HTMLAudioElement;
+
+      if (kind === 'video') {
+        elem = document.createElement('video');
+        elem.srcObject = stream;
+        elem.id = consumer.id;
+        if (elem instanceof HTMLVideoElement) {
+          elem.playsInline = false;
+        }
+        elem.autoplay = true;
+        elem.className = 'vid';
+
+        if (this.onAddRemoteMedia) {
+          this.onAddRemoteMedia(elem);
+        }
+      } else {
+        elem = document.createElement('audio');
+        elem.srcObject = stream;
+        elem.id = consumer.id;
+        elem.autoplay = true;
+
+        if (this.onAddRemoteMedia) {
+          this.onAddRemoteMedia(elem);
+        }
+      }
+  
+      consumer.on('trackended', () => {
+        this.removeConsumer(consumer.id);
+      });
+  
+      consumer.on('transportclose', () => {
+        this.removeConsumer(consumer.id);
+      });
+    });
+  }
+
+  private async getConsumeStream(producerId: string): Promise<{ consumer: any; stream: MediaStream; kind: string }> {
+    const { rtpCapabilities } = this.device!;
+    const data = await this.socket.request('consume', {
+      rtpCapabilities,
+      consumerTransportId: this.consumerTransport!.id,
+      producerId,
+    });
+    const { id, kind, rtpParameters } = data;
+
+    const consumer = await this.consumerTransport!.consume({
+      id,
+      producerId,
+      kind,
+      rtpParameters,
+    });
+
+    const stream = new MediaStream();
+    stream.addTrack(consumer.track);
+
+    return { consumer, stream, kind };
+  }
+
+  public closeProducer(type: string): void {
+    if (!this.producerLabel.has(type)) {
+      console.log('There is no producer for this type ' + type);
+      return;
+    }
+  
+    const producer_id = this.producerLabel.get(type)!;
+    console.log('Close producer', producer_id);
+  
+    this.socket.emit('producerClosed', { producer_id });
+  
+    this.producers.get(producer_id)!.close();
+    this.producers.delete(producer_id);
+    this.producerLabel.delete(type);
+  
+    if (type !== mediaType.audio) {
+        if (this.onRemoveLocalMedia) {
+          this.onRemoveLocalMedia(producer_id);
+        }
+      }
+  
+    switch (type) {
+      case mediaType.audio:
+        this.event(_EVENTS.stopAudio);
+        break;
+      case mediaType.video:
+        this.event(_EVENTS.stopVideo);
+        break;
+      case mediaType.screen:
+        this.event(_EVENTS.stopScreen);
+        break;
+      default:
+        return;
+    }
+  }
+  
+  public pauseProducer(type: string): void {
+    if (!this.producerLabel.has(type)) {
+      console.log('There is no producer for this type ' + type);
+      return;
+    }
+
+    const producer_id = this.producerLabel.get(type)!;
+    this.producers.get(producer_id)!.pause();
+  }
+
+  public resumeProducer(type: string): void {
+    if (!this.producerLabel.has(type)) {
+      console.log('There is no producer for this type ' + type);
+      return;
+    }
+
+    const producer_id = this.producerLabel.get(type)!;
+    this.producers.get(producer_id)!.resume();
+  }
+
+  public removeConsumer(consumer_id: string): void {
+    if (this.onRemoveRemoteMedia) {
+      this.onRemoveRemoteMedia(consumer_id);
+    }
+
+    this.consumers.delete(consumer_id);
+  }
+
+  public exit(offline: boolean = false): void {
+    const clean = () => {
+      this._isOpen = false;
+      this.consumerTransport!.close();
+      this.producerTransport!.close();
+      this.socket.off('disconnect');
+      this.socket.off('newProducers');
+      this.socket.off('consumerClosed');
+  
+      // Close all producers
+      this.producers.forEach(producer => producer.close());
+      this.producers.clear();
+      this.producerLabel.clear();
+  
+      // Close all consumers
+      this.consumers.forEach(consumer => consumer.close());
+      this.consumers.clear();
+    };
+  
+    if (!offline) {
+      this.socket
+        .request('exitRoom')
+        .then((e) => console.log(e))
+        .catch((e) => console.warn(e))
+        .finally(clean);
+    } else {
+      clean();
+    }
+  
+    this.event(_EVENTS.exitRoom);
+  }
+
+  ///////  HELPERS //////////
+
+  public async roomInfo(): Promise<any> {
+    return await this.socket.request('getMyRoomInfo');
+  }
+
+  public static get mediaType(): typeof mediaType {
+    return mediaType;
+  }
+
+
+  private event(evt: string): void {
+    if (this.eventListeners.has(evt)) {
+      this.eventListeners.get(evt)!.forEach((callback) => callback());
+    }
+  }
+
+  public override on(evt: string, callback: (...args: any[]) => void): this {
+    if (!this.eventListeners.has(evt)) {
+      this.eventListeners.set(evt, []);
+    }
+    this.eventListeners.get(evt)!.push(callback);
+    
+    return super.on(evt, callback);
+  }
+  
+  //////// GETTERS ////////
+
+  public isOpen(): boolean {
+    return this._isOpen;
+  }
+
+  public static get EVENTS(): typeof _EVENTS {
+    return _EVENTS;
+  }
+
+  //////// UTILITY ////////
+
+  public async copyURL(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      console.log('URL copied to clipboard 👍');
+    } catch (err) {
+      console.error('Failed to copy URL:', err);
+    }
+  }
+  
+
+  public showDevices(): void {
+    if (!this.isDevicesVisible) {
+      // reveal(devicesList); // Assuming reveal is a function defined elsewhere
+      this.isDevicesVisible = true;
+    } else {
+      // hide(devicesList); // Assuming hide is a function defined elsewhere
+      this.isDevicesVisible = false;
+    }
+  }
+
+}

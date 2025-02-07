@@ -7,15 +7,13 @@ function Modal({ onSelect }: { onSelect: (value: boolean) => void }) {
   const [roomId, setRoomId] = useState("");
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); // Prevent page refresh
+    e.preventDefault();
 
-    // Validation check
     if (!name.trim() || !roomId.trim()) {
       alert("Please enter both Name and Room Name.");
       return;
     }
 
-    // Redirect if validation passes
     router.push(`/room?name=${encodeURIComponent(name)}&roomId=${encodeURIComponent(roomId)}`);
     onSelect(false);
   };
