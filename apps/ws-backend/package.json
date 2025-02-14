@@ -11,12 +11,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "express": "^4.21.2",
     "redis": "^4.7.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@types/express": "^5.0.0",
     "@types/node": "^20",
     "@types/ws": "^8.5.14",
     "typescript": "^5"

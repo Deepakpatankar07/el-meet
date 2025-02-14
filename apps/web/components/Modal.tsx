@@ -1,20 +1,24 @@
-import { useState } from "react";
+"use client";
 import { useRouter } from "next/navigation";
+import { useAppContext } from "@/context/AppContext";
 
-function Modal({ onSelect }: { onSelect: (value: boolean) => void }) {
+function Modal({isAction, onSelect }: { isAction:string,onSelect: (value: boolean) => void }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [roomId, setRoomId] = useState("");
+  const { name, setName, room, setRoom, isHost, setIsHost } = useAppContext();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!name.trim() || !roomId.trim()) {
+    if (!name!.trim() || !room!.trim()) {
       alert("Please enter both Name and Room Name.");
       return;
     }
-
-    router.push(`/room?name=${encodeURIComponent(name)}&roomId=${encodeURIComponent(roomId)}`);
+    if(isAction === "create") {
+      setIsHost(true);
+    } else {
+      setIsHost(false);
+    }
+    if (isAction) router.push(`/room`);
     onSelect(false);
   };
 
@@ -23,7 +27,7 @@ function Modal({ onSelect }: { onSelect: (value: boolean) => void }) {
       <div className="relative p-4 w-full max-w-md bg-[var(--modalBackground)] rounded-lg shadow-sm dark:bg-[var(--modalBackground)] border border-gray-400">
         {/* Modal header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-600 rounded-t">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Create new meet</h3>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{isAction.charAt(0).toUpperCase() + isAction.slice(1)} new meet</h3>
           <button
             type="button"
             onClick={() => onSelect(false)}
@@ -52,7 +56,7 @@ function Modal({ onSelect }: { onSelect: (value: boolean) => void }) {
               <input
                 type="text"
                 id="name"
-                value={name}
+                value={name || ""}
                 onChange={(e) => setName(e.target.value)}
                 className="bg-zinc-800 border border-zinc-500 text-zinc-400 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-zinc-800 dark:border-zinc-500 dark:placeholder-zinc-400 dark:text-white"
                 placeholder="John Doe"
@@ -66,8 +70,8 @@ function Modal({ onSelect }: { onSelect: (value: boolean) => void }) {
               <input
                 type="text"
                 id="room"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
+                value={room || ""}
+                onChange={(e) => setRoom(e.target.value)}
                 className="bg-zinc-800 border border-zinc-500 text-zinc-400 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-zinc-800 dark:border-zinc-500 dark:placeholder-zinc-400 dark:text-white"
                 placeholder="e.g. Room123"
                 required
@@ -78,7 +82,7 @@ function Modal({ onSelect }: { onSelect: (value: boolean) => void }) {
                 type="submit"
                 className="w-full mt-4 text-white bg-blue-800 hover:bg-blue-900 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-800 dark:hover:bg-blue-900 dark:focus:ring-blue-800"
               >
-                Launch Room
+                {isAction.charAt(0).toUpperCase() + isAction.slice(1)} Room
               </button>
             </div>
           </form>

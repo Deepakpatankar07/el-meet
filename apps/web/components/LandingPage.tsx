@@ -7,6 +7,7 @@ import Modal from "./Modal";
 
 const LandingPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAction, setIsAction] = useState<"create" | "join">("create");
 
   return (
     <div className="min-h-screen w-full bg-background/50 backdrop-blur-md text-white flex flex-col items-center justify-start">
@@ -22,15 +23,25 @@ const LandingPage = () => {
         <p className="text-gray-400 mt-4 max-w-xl mx-auto">
           Nowadays you can collaborate with people all over the world, use our product for a feature-rich collaboration experience and it's also free.
         </p>
-        <div className="mt-10">
-          <GradientButton size="big" onClick={() => setIsModalOpen(true)}>
-            <span className="text-white text-lg font-medium">Create Meet</span>
+        <div className="mt-10 flex items-center gap-4">
+          <GradientButton size="big" onClick={() => {
+            setIsModalOpen(true);
+            setIsAction("create");
+          }}>
+            <span className="text-white text-lg font-medium">Create Meeting</span>
+          </GradientButton>
+          <br />
+          <GradientButton size="big" onClick={() => {
+            setIsModalOpen(true);
+            setIsAction("join");
+          }}>
+            <span className="text-white text-lg font-medium">Join Meeting</span>
           </GradientButton>
         </div>
       </main>
       
       {/* Modal */}
-      {isModalOpen && <Modal onSelect={() => setIsModalOpen(false)} />}
+      {isModalOpen && <Modal isAction={isAction} onSelect={() => setIsModalOpen(false)} />}
     </div>
   );
 };

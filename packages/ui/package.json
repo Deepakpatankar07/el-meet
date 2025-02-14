@@ -8,7 +8,6 @@
     "./code": "./src/code.tsx"
   },
   "scripts": {
-    "add:component": "npx shadcn add [component-name] --dir=src/components/ui",
     "lint": "eslint . --max-warnings 0",
     "generate:component": "turbo gen react-component",
     "check-types": "tsc --noEmit"

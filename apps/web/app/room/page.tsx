@@ -11,11 +11,11 @@ import { LuCamera, LuCameraOff, LuMic, LuMicOff, LuScreenShare, LuScreenShareOff
 import { HiOutlineSpeakerWave } from "react-icons/hi2";
 import Logo from "@/components/Logo";
 import { VideoPlaceholder } from "@/components/VideoPlaceholder";
+import { useAppContext } from "@/context/AppContext";
+import Chat from "@/components/Chat";
 
 export default function VideoChat() {
-  const searchParams = useSearchParams();
-  const roomId = searchParams.get("roomId") || "";
-  const name = searchParams.get("name") || "";
+  const { name, room:roomId } = useAppContext()
   const [isLoading, setIsLoading] = useState(true);
 
   const localMediaRef = useRef<HTMLDivElement>(null);
@@ -425,9 +425,16 @@ export default function VideoChat() {
               </div>
             </div>
           </div>
-          <div className="bg-blue-500 mt-4 p-4 flex-1 rounded-xl">Chat & Participants</div>
+          <div className="bg-background border border-zinc-800 rounded-xl shadow-xl mt-4 flex-1 overflow-hidden h-[87vh]">
+            <div>
+              <Chat />
+            </div>
+          </div>
         </div>
       </main>
     </div>
   );
 }
+
+
+
