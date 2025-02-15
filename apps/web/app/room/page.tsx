@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import RoomClient from "@/lib/RoomClient";
 import io from "socket.io-client";
 import * as mediasoupClient from "mediasoup-client";
@@ -15,8 +15,10 @@ import { useAppContext } from "@/context/AppContext";
 import Chat from "@/components/Chat";
 
 export default function VideoChat() {
-  const { name, room:roomId } = useAppContext()
+  const router = useRouter();
+  const { name, room: roomId, isLoadingStorage } = useAppContext();
   const [isLoading, setIsLoading] = useState(true);
+  const [cleanupChat, setCleanupChat] = useState<(() => void) | null>(null);
 
   const localMediaRef = useRef<HTMLDivElement>(null);
   const remoteVideosRef = useRef<HTMLDivElement>(null);
@@ -36,7 +38,7 @@ export default function VideoChat() {
   >([]);
 
   useEffect(() => {
-    if (!roomId || !name) return;
+    if (isLoadingStorage || !roomId || !name) return;
 
     console.log("Creating RoomClient instance");
 
@@ -91,7 +93,7 @@ export default function VideoChat() {
       rc.exit();
       socketIO.disconnect();
     };
-  }, [roomId, name]);
+  }, [roomId, name, isLoadingStorage]);
 
   const initEnumerateDevices = () => {
     const constraints = { audio: true, video: true };
@@ -115,15 +117,15 @@ export default function VideoChat() {
     });
   };
 
-  if (!roomId || !name) {
+  if (isLoadingStorage || isLoading) {
     return (
-      <h3 className="text-red-500 text-center mt-8">Error: Missing room ID or name. Please go back and enter details.</h3>
+      <h3 className="text-red-500 text-center mt-8">Loading....</h3>
     );
   }
 
-  if (isLoading) {
+  if (!roomId || !name) {
     return (
-      <h3 className="text-red-500 text-center mt-8">Loading....</h3>
+      <h3 className="text-red-500 text-center mt-8">Error: Missing room ID or name. Please go back and enter details.</h3>
     );
   }
 
@@ -177,9 +179,22 @@ export default function VideoChat() {
                         icon: (
                           <MdCallEnd className="text-2xl" />
                         ),
-                        label: "End Meeting",
+                        label: "Leave Meeting",
                         className: "px-8 bg-red-600/90 hover:bg-red-600/80",
-                        onClick: () => roomClient?.exit(),
+                        onClick: () => {
+                          roomClient?.exit()
+
+                          // Cleanup chat
+                          cleanupChat?.();
+
+                          // Clear local storage
+                          localStorage.removeItem("room");
+                          localStorage.removeItem("name");
+                          localStorage.removeItem("isHost");
+
+                          // Redirect user
+                          router.push("/");
+                        },
                       },
                       {
                         id: "copyButton",
@@ -427,7 +442,7 @@ export default function VideoChat() {
           </div>
           <div className="bg-background border border-zinc-800 rounded-xl shadow-xl mt-4 flex-1 overflow-hidden h-[87vh]">
             <div>
-              <Chat />
+              <Chat onCleanup={setCleanupChat}/>
             </div>
           </div>
         </div>

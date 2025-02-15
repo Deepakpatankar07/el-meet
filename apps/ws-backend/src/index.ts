@@ -49,9 +49,14 @@ redisSub.pSubscribe("room:*", (message, channel) => {
                 ws.send(message);
               }
             });
-          
-            // In future, if you need extra processing for messages, you can do it here
-            // Example: message logging, filtering, AI moderation, etc.
+            break;
+
+          case "participants":
+            [clientData.host, ...clientData.participants].forEach(({ ws }) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(message);
+              }
+            });
             break;
     }          
 })
@@ -69,7 +74,9 @@ wss.on("connection", (ws: WebSocket) => {
                 }
                 clients.set(room, { host: {ws,name}, participants: [] });
                 
-                redisPub.publish(`room:${room}`, JSON.stringify({ event: "roomCreated", room, name, content: "You created room !!" }));
+                redisPub.publish(`room:${room}`, JSON.stringify({ event: "roomCreated", room, name, content: "You created the room !!" }));
+
+                updateParticipants(room);
                 break;
 
             case "join":
@@ -90,6 +97,8 @@ wss.on("connection", (ws: WebSocket) => {
                 clientData.participants.push({ ws, name });
             
                 redisPub.publish(`room:${room}`, JSON.stringify({ event: "roomJoined", room, name, content: `participant ${name} joined` }));
+
+                updateParticipants(room);
                 break;
         
             case "message":
@@ -100,23 +109,35 @@ wss.on("connection", (ws: WebSocket) => {
                     return;
                 }
 
-                const chatMessage = JSON.stringify({ event: "message", room, name, content });
-        
-                redisPub.publish(`room:${room}`, chatMessage);
+                redisPub.publish(`room:${room}`, JSON.stringify({ event: "message", room, name, content }));
                 break;
         }
     });
 
     ws.on("close", () => {
         for (const [room, clientData] of clients.entries()) {
-            if (clientData.host.ws === ws) {
-                clients.delete(room);
-                redisPub.publish(`room:${room}`, JSON.stringify({ event: "roomDeleted", room }));
-            } else {
-                clientData.participants = clientData.participants.filter((p) => p.ws !== ws);
-              }
-            }
-
+          if (clientData.host.ws === ws) {
+              clients.delete(room);
+              redisPub.publish(`room:${room}`, JSON.stringify({ event: "roomDeleted", room , content: `Deleted the Room: ${room}` }));
+          } else {
+            clientData.participants = clientData.participants.filter((p) => p.ws !== ws);
+            updateParticipants(room);
+          }
+        }
     });
 });
 
+function updateParticipants(room: string) {
+  const clientData = clients.get(room);
+  if (!clientData) return;
+
+  const participantsList = [
+    ...clientData.participants.map((p) => p.name),
+    clientData.host.name,
+  ];
+
+  redisPub.publish(
+    `room:${room}`,
+    JSON.stringify({ event: "participants", room, participants: participantsList })
+  );
+}

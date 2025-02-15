@@ -13,11 +13,11 @@ interface Message {
 }
 
 interface Participant {
-  userId: string;
+  name: string;
   status: "online" | "offline";
 }
 
-const Chat = () => {
+const Chat = ({onCleanup}:{onCleanup:(cleanupFn:()=>void)=>void}) => {
   const { name, room, isHost } = useAppContext();
   const action = isHost ? "create" : "join";
   const [activeTab, setActiveTab] = useState("Chat");
@@ -55,8 +55,18 @@ const Chat = () => {
           setMessages((prev) => [ ...prev, { name: "System", content:message.content } ]);
           break;
 
+        case "roomDeleted":
+          console.log("Room Deleted:", message.room);
+          setMessages((prev) => [ ...prev, { name: "System", content:message.content } ]);
+          break;
+
         case "participants":
-          setParticipants(message.participants);
+          setParticipants(() => {
+            let updatedParticipants = message.participants.filter((p: string) => p !== name);
+            updatedParticipants.push(`${name} (You)`);
+        
+            return updatedParticipants.map((p:string) => ({ name: p, status: "online" }));
+          });
           break;
 
         case "message":
@@ -89,6 +99,20 @@ const Chat = () => {
       wsRef.current = null;
     };
   }, [room, name]);
+
+  const cleanupWebSocket = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current?.close();
+    }
+    wsRef.current = null;
+  };
+
+  // Pass cleanup function to parent
+  useEffect(() => {
+    if (onCleanup) {
+      onCleanup(cleanupWebSocket);
+    }
+  }, [onCleanup]);
 
   const sendMessage = () => {
     if (
@@ -147,7 +171,7 @@ const Chat = () => {
                       : "bg-gray-500"
                   }`}
                 />
-                <p className="text-sm text-gray-500/50">{participant.userId}</p>
+                <p className="text-sm text-gray-500/50">{participant.name}</p>
               </div>
             ))}
           </div>

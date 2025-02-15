@@ -9,7 +9,7 @@ function Modal({isAction, onSelect }: { isAction:string,onSelect: (value: boolea
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!name!.trim() || !room!.trim()) {
+    if (!name?.trim() || !room?.trim()) {
       alert("Please enter both Name and Room Name.");
       return;
     }
