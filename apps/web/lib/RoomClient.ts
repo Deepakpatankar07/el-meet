@@ -554,9 +554,16 @@ export default class RoomClient extends EventEmitter {
 
   public exit(offline: boolean = false): void {
     const clean = () => {
+      console.log("Cleaning up - consumerTransport:", this.consumerTransport, "producerTransport:", this.producerTransport);
       this._isOpen = false;
-      this.consumerTransport!.close();
-      this.producerTransport!.close();
+      if (this.consumerTransport) {
+        this.consumerTransport.close();
+        this.consumerTransport = null; // Prevent double-close
+      }
+      if (this.producerTransport) {
+        this.producerTransport.close();
+        this.producerTransport = null; // Prevent double-close
+      }
       this.socket.off('disconnect');
       this.socket.off('newProducers');
       this.socket.off('consumerClosed');

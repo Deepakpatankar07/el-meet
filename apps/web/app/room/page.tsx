@@ -164,7 +164,9 @@ const enumerateDevices = () => {
 
     return () => {
       console.log("Cleaning up RoomClient instance");
-      rc.exit();
+      if (rc) {
+        rc.exit(); // Call exit only if rc exists
+      }
       socketIO.disconnect();
     };
   }, [roomId, email]);
@@ -174,10 +176,13 @@ const enumerateDevices = () => {
     if (!confirmExit) return;
     
     if (chatRef.current) {
-      await chatRef.current.closeChatConnection(); // ✅ Wait for WebSocket to close
+      await chatRef.current.closeChatConnection(); // Wait for WebSocket to close
     }
 
-    roomClient?.exit(); // ✅ Now safely exit after WebSocket is closed
+    if (roomClient) {
+      roomClient.exit(); // Call exit only once here
+      setRoomClient(null); // Clear roomClient to prevent double cleanup
+    }
     socketRef.current?.disconnect();
 
     localStorage.removeItem("room");

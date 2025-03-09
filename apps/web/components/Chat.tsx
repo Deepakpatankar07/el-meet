@@ -203,7 +203,7 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
 
     const heartbeatInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ action: "ping" }));
+        ws.send(JSON.stringify({ action: "ping",room, email }));
       }
     }, 60000);
 

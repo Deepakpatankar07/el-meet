@@ -1,6 +1,7 @@
+// AppContext.tsx
 "use client";
 
-import { ReactNode, createContext, useContext, useState, useEffect } from "react";
+import { ReactNode, createContext, useContext, useState, useEffect, useMemo } from "react";
 
 interface AppState {
   email: string | null;
@@ -11,60 +12,80 @@ interface AppState {
   setIsHost: (isHost: boolean | null) => void;
   token: string | null;
   setToken: (token: string | null) => void;
+  isLoading: boolean;
 }
 
-export const AppContext = createContext<AppState | null>(null);
+interface AuthData {
+  email: string | null;
+  room: string | null;
+  isHost: boolean | null;
+  token: string | null;
+}
+
+const AppContext = createContext<AppState | null>(null);
+
+const loadInitialAuthData = (): AuthData => {
+  if (typeof window === "undefined") {
+    return { email: null, room: null, isHost: null, token: null };
+  }
+  
+  const token = localStorage.getItem("token");
+  if (!token) {
+    return { email: null, room: null, isHost: null, token: null };
+  }
+
+  return {
+    token,
+    email: localStorage.getItem("email") || null,
+    room: localStorage.getItem("room") || null,
+    isHost: localStorage.getItem("isHost") 
+      ? JSON.parse(localStorage.getItem("isHost")!) 
+      : null
+  };
+};
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [email, setEmail] = useState<string | null>(null);
-  const [room, setRoom] = useState<string | null>(null);
-  const [isHost, setIsHost] = useState<boolean | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [authData, setAuthData] = useState<AuthData>(loadInitialAuthData);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load data from localStorage when the component mounts (client-side)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedToken = localStorage.getItem("token");
-      setToken(storedToken);
-
-      setEmail(localStorage.getItem("email") || null);
-      setRoom(localStorage.getItem("room") || null);
-      const storedIsHost = localStorage.getItem("isHost");
-      setIsHost(storedIsHost ? JSON.parse(storedIsHost) : null);
-    }
+    setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (token) {
-        localStorage.setItem("token", token);
-      } else {
-        localStorage.removeItem("token");
+  const updateAuthData = (newData: Partial<AuthData>) => {
+    setAuthData(prev => {
+      const updatedData = { ...prev, ...newData };
+      
+      if (typeof window !== "undefined") {
+        if (updatedData.token) {
+          localStorage.setItem("token", updatedData.token);
+        } else {
+          localStorage.removeItem("token");
+        }
+        
+        localStorage.setItem("email", updatedData.email || "");
+        localStorage.setItem("room", updatedData.room || "");
+        localStorage.setItem("isHost", JSON.stringify(updatedData.isHost));
       }
-    }
-  }, [token]);
+      
+      return updatedData;
+    });
+  };
 
-  // Sync state with localStorage whenever it changes
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("email", email || "");
-    }
-  }, [email]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("room", room || "");
-    }
-  }, [room]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("isHost", JSON.stringify(isHost));
-    }
-  }, [isHost]);
+  const contextValue = useMemo(() => ({
+    email: authData.email,
+    setEmail: (email: string | null) => updateAuthData({ email }),
+    room: authData.room,
+    setRoom: (room: string | null) => updateAuthData({ room }),
+    isHost: authData.isHost,
+    setIsHost: (isHost: boolean | null) => updateAuthData({ isHost }),
+    token: authData.token,
+    setToken: (token: string | null) => updateAuthData({ token }),
+    isLoading
+  }), [authData, isLoading]);
 
   return (
-    <AppContext.Provider value={{ email, setEmail, room, setRoom, isHost, setIsHost, token, setToken }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

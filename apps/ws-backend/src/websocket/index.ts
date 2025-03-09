@@ -114,22 +114,6 @@ export function setupWebSocket(server: Server) {
       return;
     }
 
-    // console.log(`User ${userId} (${user.email}) joined room ${roomId}`);
-
-    // // Add user to the room
-    // if (!users.has(roomId)) {
-    //   users.set(roomId, []);
-    // }
-
-    // const existingUser = users
-    //   .get(roomId)!
-    //   .find((user) => user.userId === userId);
-    // if (!existingUser) {
-    //   users.get(roomId)!.push({ ws, userId });
-    // }
-
-    // console.log(`User ${userId} (${user.email}) connected to room ${roomId}`);
-
     console.log(`User ${userId} (${user.email}) joined room ${roomId}`);
 
     // Initialize room in users map if it doesn't exist
