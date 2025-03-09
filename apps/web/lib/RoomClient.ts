@@ -44,7 +44,7 @@ interface MediasoupClient {
 }
 
 export default class RoomClient extends EventEmitter {
-  private name: string;
+  private email: string;
   private localMediaEl: HTMLElement;
   private remoteVideoEl: HTMLElement;
   private remoteAudioEl: HTMLElement;
@@ -73,7 +73,7 @@ export default class RoomClient extends EventEmitter {
     mediasoupClient: MediasoupClient,
     socket: Socket,
     room_id: string,
-    name: string,
+    email: string,
     successCallback: () => void,
     onAddLocalMedia?: (element: HTMLVideoElement | HTMLAudioElement) => void,
     onRemoveLocalMedia?: (elementId: string) => void,
@@ -81,7 +81,7 @@ export default class RoomClient extends EventEmitter {
     onRemoveRemoteMedia?: (elementId: string) => void
   ) {
     super();
-    this.name = name;
+    this.email = email;
     this.localMediaEl = localMediaEl;
     this.remoteVideoEl = remoteVideoEl;
     this.remoteAudioEl = remoteAudioEl;
@@ -100,7 +100,7 @@ export default class RoomClient extends EventEmitter {
     });
 
     this.createRoom(room_id).then(async () => {
-      await this.join(name, room_id);
+      await this.join(email, room_id);
       this.initSockets();
       this._isOpen = true;
       successCallback();
@@ -114,31 +114,31 @@ export default class RoomClient extends EventEmitter {
       return;
     }
 
-    console.log(`Creating room with ID: ${room_id}`);
+    // console.log(`Creating room with ID: ${room_id}`);
 
     try {
       await this.socket.request('createRoom', { room_id });
-      console.log(`Room ${room_id} created successfully`);
+      // console.log(`Room ${room_id} created successfully`);
     } catch (err) {
       console.error('Create room error:', err);
     }
   }
 
-  private async join(name: string, room_id: string): Promise<void> {
+  private async join(email: string, room_id: string): Promise<void> {
     this.socket
-      .request('join', { name, room_id })
+      .request('join', { email, room_id })
       .then(async (e) => {
         console.log('Joined to room', e);
 
         const data = await this.socket.request('getRouterRtpCapabilities');
-        console.log('getRouterRtpCapabilities:', data);
+        // console.log('getRouterRtpCapabilities:', data);
 
         const device = await this.loadDevice(data);
-        console.log("device", device);
+        // console.log("device", device);
 
         this.device = device;
         const res = await this.initTransports(device);
-        console.log("initTransports response:", res);
+        // console.log("initTransports response:", res);
         
         this.socket.emit('getProducers');
       })
@@ -152,7 +152,7 @@ export default class RoomClient extends EventEmitter {
     try {
       device = new this.mediasoupClient.Device();
     } catch (error: any) {
-      if (error.name === 'UnsupportedError') {
+      if (error.email === 'UnsupportedError') {
         console.error('Browser not supported');
         alert('Browser not supported');
       }
@@ -169,7 +169,7 @@ export default class RoomClient extends EventEmitter {
         forceTcp: false,
         rtpCapabilities: device.rtpCapabilities,
       });
-      console.log("createWebRtcTransport data:", data);
+      // console.log("createWebRtcTransport data:", data);
       if (data.error) {
         console.error("createWebRtcTransport data error:", data.error);
         return;
@@ -267,12 +267,12 @@ export default class RoomClient extends EventEmitter {
 
   private initSockets(): void {
     this.socket.on('consumerClosed', ({ consumer_id }) => {
-      console.log('Closing consumer:', consumer_id);
+      // console.log('Closing consumer:', consumer_id);
       this.removeConsumer(consumer_id);
     });
 
     this.socket.on('newProducers', async (data) => {
-      console.log('New producers', data);
+      // console.log('New producers', data);
       for (const { producer_id } of data) {
         await this.consume(producer_id);
       }
@@ -323,11 +323,11 @@ export default class RoomClient extends EventEmitter {
     }
 
     if (this.producerLabel.has(type)) {
-      console.log('Producer already exists for this type ' + type);
+      // console.log('Producer already exists for this type ' + type);
       return;
     }
 
-    console.log('Mediacontraints:', mediaConstraints);
+    // console.log('Mediacontraints:', mediaConstraints);
     let stream: MediaStream;
     try {
       try {
@@ -338,12 +338,12 @@ export default class RoomClient extends EventEmitter {
         console.error("Failed to access media devices:", error);
         return;
       }
-      console.log(navigator.mediaDevices.getSupportedConstraints());
+      // console.log(navigator.mediaDevices.getSupportedConstraints());
 
       const track = audio ? stream.getAudioTracks()[0] : stream.getVideoTracks()[0];
       const params: ProducerOptions = { track };
 
-      console.log("Params:", params);
+      // console.log("Params:", params);
 
       if (!audio && !screen) {
         params.encodings = [
@@ -358,13 +358,13 @@ export default class RoomClient extends EventEmitter {
         throw new Error("this producerTransport is null");
       }
 
-      console.log("this.producerTransport", this.producerTransport);
+      // console.log("this.producerTransport", this.producerTransport);
       const producer = await this.producerTransport.produce(params);
       if (!producer) {
         throw new Error("No producer present !!");
       }
 
-      console.log('Producer', producer);
+      // console.log('Producer', producer);
 
       this.producers.set(producer.id, producer);
 
@@ -490,12 +490,12 @@ export default class RoomClient extends EventEmitter {
 
   public closeProducer(type: string): void {
     if (!this.producerLabel.has(type)) {
-      console.log('There is no producer for this type ' + type);
+      // console.log('There is no producer for this type ' + type);
       return;
     }
   
     const producer_id = this.producerLabel.get(type)!;
-    console.log('Close producer', producer_id);
+    // console.log('Close producer', producer_id);
   
     this.socket.emit('producerClosed', { producer_id });
   
@@ -526,7 +526,7 @@ export default class RoomClient extends EventEmitter {
   
   public pauseProducer(type: string): void {
     if (!this.producerLabel.has(type)) {
-      console.log('There is no producer for this type ' + type);
+      // console.log('There is no producer for this type ' + type);
       return;
     }
 
@@ -536,7 +536,7 @@ export default class RoomClient extends EventEmitter {
 
   public resumeProducer(type: string): void {
     if (!this.producerLabel.has(type)) {
-      console.log('There is no producer for this type ' + type);
+      // console.log('There is no producer for this type ' + type);
       return;
     }
 

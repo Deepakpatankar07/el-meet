@@ -22,7 +22,7 @@ const getLocalIp = (): string => {
 
 export default {
   listenIp: '0.0.0.0',
-  listenPort: 3010,
+  listenPort: 8000,
   mediasoup: {
     numWorkers: Object.keys(os.cpus()).length,
     worker: {

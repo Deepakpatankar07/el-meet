@@ -1,24 +1,49 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
+import { WS_BACKEND_URL } from "@/config";
+import axios from "axios";
+import { useState } from "react";
+import { toast } from "react-toastify";
 
 function Modal({isAction, onSelect }: { isAction:string,onSelect: (value: boolean) => void }) {
   const router = useRouter();
-  const { name, setName, room, setRoom, isHost, setIsHost } = useAppContext();
+  const [preRoom, setPreRoom] = useState<string | null>(null);
+  const { setEmail, setRoom, setIsHost } = useAppContext();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!name?.trim() || !room?.trim()) {
-      alert("Please enter both Name and Room Name.");
+    if (!preRoom?.trim()) {
+      toast.warn("Please enter Room Name.");
       return;
     }
-    if(isAction === "create") {
-      setIsHost(true);
-    } else {
-      setIsHost(false);
+    try {
+      const res = await axios.post(`${WS_BACKEND_URL}/api/v1/room/${isAction}`,
+        { name: preRoom },
+        {
+          headers: {
+            Authorization: `${localStorage.getItem("token")}`,
+          }
+        }
+      )
+      console.log(res.data.message);
+      toast.success(res.data.message);
+
+      setEmail(res.data.email);
+      setRoom(res.data.roomName);
+      isAction === "create" ? setIsHost(true) : setIsHost(false);
+
+      router.push(`/room`); 
+    } catch (error) {
+      console.log(error);
+      if (axios.isAxiosError(error) && error.response) {
+        console.log(error.response.data.message);
+        toast.warn(error.response.data.message);
+      } else {
+        console.error("An unexpected error occurred", error);
+      }
     }
-    if (isAction) router.push(`/room`);
     onSelect(false);
   };
 
@@ -49,20 +74,20 @@ function Modal({isAction, onSelect }: { isAction:string,onSelect: (value: boolea
         {/* Modal body */}
         <div className="p-4 md:p-5">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
+            {/* <div>
               <label htmlFor="name" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                Enter your name
+                Enter your email
               </label>
               <input
                 type="text"
                 id="name"
-                value={name || ""}
-                onChange={(e) => setName(e.target.value)}
+                value={ || ""}
+                onChange={(e) => setEmail(e.target.value)}
                 className="bg-zinc-800 border border-zinc-500 text-zinc-400 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-zinc-800 dark:border-zinc-500 dark:placeholder-zinc-400 dark:text-white"
                 placeholder="John Doe"
                 required
               />
-            </div>
+            </div> */}
             <div>
               <label htmlFor="room" className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
                 Enter room name
@@ -70,8 +95,8 @@ function Modal({isAction, onSelect }: { isAction:string,onSelect: (value: boolea
               <input
                 type="text"
                 id="room"
-                value={room || ""}
-                onChange={(e) => setRoom(e.target.value)}
+                value={preRoom || ""}
+                onChange={(e) => setPreRoom(e.target.value)}
                 className="bg-zinc-800 border border-zinc-500 text-zinc-400 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-zinc-800 dark:border-zinc-500 dark:placeholder-zinc-400 dark:text-white"
                 placeholder="e.g. Room123"
                 required

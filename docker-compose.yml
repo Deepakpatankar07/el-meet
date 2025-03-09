@@ -3,9 +3,26 @@ services:
     image: redis
     container_name: el-meet-redis
     ports:
-      - "6379:6379"
+      - "6888:6379"
     networks:
       - my-network
+
+  postgres:
+    image: postgres
+    container_name: el-meet-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: el-meet-postgres-user
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: el-meet-postgres-db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - my-network
+
+volumes:
+  postgres_data:
 
 networks:
   my-network:

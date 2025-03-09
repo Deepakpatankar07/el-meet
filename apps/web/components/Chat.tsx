@@ -1,43 +1,126 @@
 "use client";
+import { WS_BACKEND_URL } from "@/config";
 import { useAppContext } from "@/context/AppContext";
-import React from "react";
-import { useEffect } from "react";
-import { useRef } from "react";
-import { useState } from "react";
+import { useSocket } from "@/hooks/useSocket";
+import axios from "axios";
+import React, { forwardRef, useImperativeHandle,useEffect, useState, useRef } from "react";
 import { IoMdSend } from "react-icons/io";
 
 interface Message {
-  name: string;
+  email: string;
   content: string;
   event?: string;
+  timestamp?: number;
+  messageId: number;
 }
 
 interface Participant {
-  name: string;
+  email: string;
   status: "online" | "offline";
 }
+export interface ChatRef {
+  closeChatConnection: () => Promise<void>;
+}
 
-const Chat = ({onCleanup}:{onCleanup:(cleanupFn:()=>void)=>void}) => {
-  const { name, room, isHost } = useAppContext();
-  const action = isHost ? "create" : "join";
+const Chat = forwardRef<ChatRef>((_, ref) => {
+  const { ws, loading } = useSocket();
+  const { email, room, isHost } = useAppContext();
   const [activeTab, setActiveTab] = useState("Chat");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [allHistoryLoaded, setAllHistoryLoaded] = useState(false);
+  const [cursor, setCursor] = useState(
+    Date.now() * 1000000 + Number.MAX_SAFE_INTEGER
+  );
+  const messageContainerRef = useRef<HTMLDivElement>(null);
+
+  const fetchHistory = async () => {
+    if (allHistoryLoaded || loadingHistory) return;
+
+    setLoadingHistory(true);
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log("Fetching history with cursor:", cursor);
+      ws.send(
+        JSON.stringify({ action: "getHistory", room, cursor, limit: 20 })
+      );
+    } else {
+      console.log("WebSocket not ready, retrying later...");
+      setTimeout(fetchHistory, 1000);
+    }
+  };
+  const closeChatConnection = async () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    return new Promise<void>((resolve) => {
+      console.log("Closing WebSocket...");
+      if(isHost){
+        const EndMeeting = { action: "endmeeting", room, email };
+        ws.send(JSON.stringify(EndMeeting));
+      }
+      ws.onclose = () => {
+        console.log("WebSocket closed");
+        resolve(); // ✅ Resolve the Promise once closed
+      };
+
+      ws.close(); // Trigger WebSocket closure
+    });
+  };
+
+  // Expose `closeChatConnection` to parent using ref
+  useImperativeHandle(ref, () => ({
+    closeChatConnection,
+  }));
 
   useEffect(() => {
-    if (!name || !room || wsRef.current) {
-      console.log("Missing name, room or wsRef");
+    const messageContainer = messageContainerRef.current;
+    if (!messageContainer) return;
+
+    const handleScroll = () => {
+      if (
+        messageContainer.scrollTop === 0 &&
+        !loadingHistory &&
+        !allHistoryLoaded
+      ) {
+        fetchHistory();
+      }
+    };
+
+    messageContainer.addEventListener("scroll", handleScroll);
+    return () => messageContainer.removeEventListener("scroll", handleScroll);
+  }, [loadingHistory, allHistoryLoaded]);
+
+  // useEffect(() => {
+  //   console.log("messages updated:", messages);
+  // }, [messages]);
+
+  useEffect(() => {
+    if (!email || !room || loading) {
+      console.log("Missing email, room or loading");
       return;
     }
 
-    const ws = new WebSocket("ws://localhost:8080");
+    console.log("WebSocket assigned:", ws);
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.log("WebSocket not ready");
+      return;
+    }
+
+    const fetchInitialHistory = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        fetchHistory();
+      } else {
+        setTimeout(fetchInitialHistory, 100);
+      }
+    };
+
+    fetchInitialHistory();
 
     ws.onopen = () => {
-      console.log("WebSocket connected, sending data:", { action, room, name });
-      ws.send(JSON.stringify({ action:action, room, name }));
-      wsRef.current = ws;
+      console.log("WebSocket connected for room:", room);
     };
 
     ws.onmessage = (event) => {
@@ -45,32 +128,64 @@ const Chat = ({onCleanup}:{onCleanup:(cleanupFn:()=>void)=>void}) => {
       console.log("Message received:", message);
 
       switch (message.event) {
-        case "roomCreated":
-          console.log("Room created:", message.room);
-          setMessages((prev) => [ ...prev, { name: "System", content:message.content } ]);
-          break;
-          
-        case "roomJoined":
-          console.log("Room joined:", message.room);
-          setMessages((prev) => [ ...prev, { name: "System", content:message.content } ]);
-          break;
-
-        case "roomDeleted":
-          console.log("Room Deleted:", message.room);
-          setMessages((prev) => [ ...prev, { name: "System", content:message.content } ]);
-          break;
-
-        case "participants":
-          setParticipants(() => {
-            let updatedParticipants = message.participants.filter((p: string) => p !== name);
-            updatedParticipants.push(`${name} (You)`);
-        
-            return updatedParticipants.map((p:string) => ({ name: p, status: "online" }));
-          });
-          break;
-
         case "message":
           setMessages((prev) => [...prev, message]);
+          break;
+
+        case "endmeeting":
+          console.log("Meeting Ended");
+          break;
+
+        case "status":
+          setParticipants((prev) =>
+            prev.map((participant) =>
+              participant.email === message.email
+                ? { ...participant, status: message.status }
+                : participant
+            )
+          );
+          break;
+
+        case "history":
+          if (message.messages.length === 0) {
+            setAllHistoryLoaded(true); // No more history to load
+          } else {
+            const earliestMessage =
+              message.messages[message.messages.length - 1];
+            const newCursor = earliestMessage.score; // Update cursor with the earliest message
+
+            setMessages((prevMessages) => {
+              const existingMessageIds = new Set(
+                prevMessages.map((msg) => msg.messageId)
+              );
+              // console.log("Existing message IDs:", existingMessageIds);
+
+              const newMessages = message.messages.filter(
+                (msg: Message) => !existingMessageIds.has(msg.messageId)
+              );
+              // console.log("New messages:", newMessages);
+
+              if (newMessages.length > 0) {
+                setCursor(newCursor);
+                return [...newMessages, ...prevMessages]; 
+              }
+
+              return prevMessages; // No change if no new messages
+            });
+
+            // Adjust scroll position properly
+            const messageContainer = messageContainerRef.current;
+            if (messageContainer) {
+              const prevScrollHeight = messageContainer.scrollHeight;
+              requestAnimationFrame(() => {
+                if (messageContainer) {
+                  messageContainer.scrollTop =
+                    messageContainer.scrollHeight - prevScrollHeight;
+                }
+              });
+            }
+          }
+          setLoadingHistory(false);
           break;
 
         case "error":
@@ -86,44 +201,43 @@ const Chat = ({onCleanup}:{onCleanup:(cleanupFn:()=>void)=>void}) => {
       console.error("WebSocket Error:", error);
     };
 
-    ws.onclose = () => {
-      console.log("WebSocket disconnected");
-      wsRef.current = null;
-    };
+    const heartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: "ping" }));
+      }
+    }, 60000);
 
     return () => {
+      clearInterval(heartbeatInterval);
       console.log("Cleaning up WebSocket for room:", room);
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.close();
-      }
-      wsRef.current = null;
     };
-  }, [room, name]);
-
-  const cleanupWebSocket = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current?.close();
-    }
-    wsRef.current = null;
-  };
-
-  // Pass cleanup function to parent
-  useEffect(() => {
-    if (onCleanup) {
-      onCleanup(cleanupWebSocket);
-    }
-  }, [onCleanup]);
+  }, [room, ws, email, loading]);
 
   const sendMessage = () => {
-    if (
-      wsRef.current &&
-      wsRef.current.readyState === WebSocket.OPEN &&
-      input.trim()
-    ) {
-      wsRef.current.send(
-        JSON.stringify({ action: "message", room, name, content: input })
-      );
+    if (ws && ws.readyState === WebSocket.OPEN && input.trim()) {
+      let data = { action: "message", room, email, content: input.trim() };
+      console.log("Sending message:", JSON.stringify(data));
+      ws.send(JSON.stringify(data));
       setInput("");
+    }
+  };
+
+  const fetchParticipants = async () => {
+    try {
+      const res = await axios.post(
+        `${WS_BACKEND_URL}/api/v1/room/allparticipants`,
+        { roomName: room },
+        {
+          headers: {
+            Authorization: `${localStorage.getItem("token")}`,
+          },
+        }
+      );
+      const { host, participants } = res.data;
+
+      setParticipants([host, ...participants]);
+    } catch (error) {
+      console.error("Error fetching participants:", error);
     }
   };
 
@@ -146,7 +260,10 @@ const Chat = ({onCleanup}:{onCleanup:(cleanupFn:()=>void)=>void}) => {
                 ? "border border-zinc-800 bg-zinc-900"
                 : ""
             }`}
-            onClick={() => setActiveTab("Participants")}
+            onClick={() => {
+              setActiveTab("Participants");
+              fetchParticipants();
+            }}
           >
             Participants
           </button>
@@ -159,28 +276,43 @@ const Chat = ({onCleanup}:{onCleanup:(cleanupFn:()=>void)=>void}) => {
                 You are the host
               </p>
             )}
-            <p className="text-sm text-gray-500/50 text-center">
-              Participants:
-            </p>
+
             {participants.map((participant, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className="flex items-center gap-4 px-4">
+                <div className="text-xs bg-white/5 backdrop-blur-sm text-white hover:bg-white/10 text-center w-8 h-8 border border-zinc-800 rounded-full flex items-center justify-center">
+                  {participant.email
+                    ? participant.email.charAt(0).toUpperCase()
+                    : "U"}
+                </div>
+                <p className="">{participant.email}</p>
                 <div
-                  className={`w-2 h-2 rounded-full ${
+                  className={`w-2 h-2 rounded-full flex items-center justify-center ${
                     participant.status === "online"
                       ? "bg-green-500"
                       : "bg-gray-500"
                   }`}
                 />
-                <p className="text-sm text-gray-500/50">{participant.name}</p>
               </div>
             ))}
           </div>
         ) : (
           <>
             {/* Messages Section */}
-            <div className="py-4 px-2 overflow-auto flex flex-col space-y-2 flex-1">
-              {messages.map((msg, i) => (
-                msg.name === "System" ? (
+            <div
+              ref={messageContainerRef}
+              className="py-4 px-2 overflow-auto flex flex-col space-y-2 flex-1 scrollbar-thin scrollbar-track-gray-800 scrollbar-thumb-gray-600 hover:scrollbar-thumb-gray-500 md:scrollbar-none"
+              onScroll={(e) => {
+                if (e.currentTarget.scrollTop === 0) {
+                  fetchHistory();
+                }
+              }}
+            >
+              {loadingHistory && allHistoryLoaded && (
+                <p className="text-center">Loading history...</p>
+              )}
+              {messages.map((msg, i) =>
+                // ... (message rendering)
+                msg.email === "System" ? (
                   <div key={i} className="">
                     <p className="text-xs text-gray-500/50 text-center bg-gray-700/50 px-2 rounded-md w-fit mx-auto">
                       {msg.content}
@@ -190,39 +322,44 @@ const Chat = ({onCleanup}:{onCleanup:(cleanupFn:()=>void)=>void}) => {
                   <div
                     key={i}
                     className={`flex items-start gap-2 ${
-                      msg.name === name ? "justify-end" : "justify-start"
+                      msg.email === email ? "justify-end" : "justify-start"
                     }`}
                   >
+                    {/* ... (message content) */}
                     {/* Avatar */}
-                    {msg.name !== name && (
+                    {msg.email !== email && (
                       <div className="text-xs bg-white/5 backdrop-blur-sm text-white hover:bg-white/10 text-center w-8 h-8 border border-zinc-800 rounded-full flex items-center justify-center">
-                        {msg.name ? msg.name.charAt(0).toUpperCase() : "A"}
+                        {msg.email ? msg.email.charAt(0).toUpperCase() : "U"}
                       </div>
                     )}
 
                     {/* Message Box */}
                     <div
-                      className={`py-2 px-4 rounded-lg max-w-xs break-words ${
-                        msg.name === name
+                      className={`py-2 px-4 rounded-lg max-w-xs w-fit break-words ${
+                        msg.email === email
                           ? "bg-blue-500/70 hover:bg-blue-500/80 text-white ml-auto flex flex-row-reverse"
                           : "bg-white/5 backdrop-blur-sm text-white hover:bg-white/10"
                       } flex items-center gap-2`}
                     >
-                      <div className="text-sm">
-                        <p className="text-white/30 mb-1 text-xs">{msg.name}</p>
-                        <p className="break-words">{msg.content}</p>
+                      <div className="text-sm w-full">
+                        <p
+                          className={` mb-1 text-xs ${msg.email === email ? "text-end text-white/30" : "text-start text-white/15"}`}
+                        >
+                          {msg.email}
+                        </p>
+                        <p className="break-words w-full">{msg.content}</p>
                       </div>
                     </div>
 
                     {/* Avatar (for sent messages) */}
-                    {msg.name === name && (
+                    {msg.email === email && (
                       <div className="text-xs bg-white/5 backdrop-blur-sm text-white hover:bg-white/10 text-center w-8 h-8 border border-zinc-800 rounded-full flex items-center justify-center">
-                        {msg.name ? msg.name.charAt(0).toUpperCase() : "A"}
+                        {msg.email ? msg.email.charAt(0).toUpperCase() : "U"}
                       </div>
                     )}
                   </div>
                 )
-              ))}
+              )}
             </div>
 
             {/* Input Section */}
@@ -246,6 +383,6 @@ const Chat = ({onCleanup}:{onCleanup:(cleanupFn:()=>void)=>void}) => {
       </div>
     </div>
   );
-};
+});
 
 export default Chat;

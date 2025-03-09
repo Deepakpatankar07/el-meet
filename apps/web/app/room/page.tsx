@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import RoomClient from "@/lib/RoomClient";
-import io from "socket.io-client";
+import io , {Socket} from "socket.io-client";
 import * as mediasoupClient from "mediasoup-client";
 import { MdCallEnd } from "react-icons/md";
 import { PiCopySimple, PiDevicesDuotone } from "react-icons/pi";
@@ -12,13 +12,17 @@ import { HiOutlineSpeakerWave } from "react-icons/hi2";
 import Logo from "@/components/Logo";
 import { VideoPlaceholder } from "@/components/VideoPlaceholder";
 import { useAppContext } from "@/context/AppContext";
-import Chat from "@/components/Chat";
+import Chat, { ChatRef } from "@/components/Chat";
+import NavPage from "@/components/NavPage";
+import { WRTC_BACKEND_URL } from "@/config";
 
 export default function VideoChat() {
   const router = useRouter();
-  const { name, room: roomId, isLoadingStorage } = useAppContext();
+  const { email, room:roomId } = useAppContext()
+  
   const [isLoading, setIsLoading] = useState(true);
-  const [cleanupChat, setCleanupChat] = useState<(() => void) | null>(null);
+  const chatRef = useRef<ChatRef>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   const localMediaRef = useRef<HTMLDivElement>(null);
   const remoteVideosRef = useRef<HTMLDivElement>(null);
@@ -37,12 +41,82 @@ export default function VideoChat() {
     (HTMLVideoElement | HTMLAudioElement)[]
   >([]);
 
+  // Add this state at the top of your component
+const [permissionStatus, setPermissionStatus] = useState<{
+  camera: PermissionState | null;
+  microphone: PermissionState | null;
+}>({ camera: null, microphone: null });
+
+// Check permissions for camera and microphone
+const checkPermissions = async () => {
+  try {
+    const cameraPerm = await navigator.permissions.query({ name: "camera" as PermissionName });
+    const micPerm = await navigator.permissions.query({ name: "microphone" as PermissionName });
+
+    setPermissionStatus({ camera: cameraPerm.state, microphone: micPerm.state });
+
+    // Listen for permission changes
+    cameraPerm.onchange = () => setPermissionStatus((prev) => ({ ...prev, camera: cameraPerm.state }));
+    micPerm.onchange = () => setPermissionStatus((prev) => ({ ...prev, microphone: micPerm.state }));
+
+    return { camera: cameraPerm.state, microphone: micPerm.state };
+  } catch (err) {
+    console.error("Error checking permissions:", err);
+    return { camera: null, microphone: null };
+  }
+};
+
+// Request media permissions and enumerate devices
+const requestMediaPermissions = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    enumerateDevices();
+    stream.getTracks().forEach((track) => track.stop());
+    return true;
+  } catch (err) {
+    console.error("Error requesting media permissions:", err);
+    return false;
+  }
+};
+
+// Combined initEnumerateDevices
+const initEnumerateDevices = async () => {
+  const perms = await checkPermissions();
+
+  if (perms.camera === "denied" || perms.microphone === "denied") {
+    console.warn("Camera or microphone permissions denied.");
+    // Don’t proceed; let the user trigger it manually
+    return;
+  }
+
+  if (perms.camera === "granted" && perms.microphone === "granted") {
+    enumerateDevices();
+  } else {
+    // Prompt for permissions if not yet decided
+    const granted = await requestMediaPermissions();
+    if (!granted) {
+      console.warn("User denied media permissions.");
+    }
+  }
+};
+
+// Keep your enumerateDevices function as is (or enhance it slightly)
+const enumerateDevices = () => {
+  navigator.mediaDevices.enumerateDevices().then((devices) => {
+    setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+    setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
+  }).catch((err) => {
+    console.error("Error enumerating devices:", err);
+  });
+};
+
   useEffect(() => {
-    if (isLoadingStorage || !roomId || !name) return;
+    if (!roomId || !email) return;
 
     console.log("Creating RoomClient instance");
 
-    const socketIO = io("http://localhost:3010");
+    const socketIO = io(`${WRTC_BACKEND_URL}`);
+    socketRef.current = socketIO;
     const socket = Object.assign(socketIO, {
       request: (event: string, data?: any) => {
         return new Promise((resolve, reject) => {
@@ -63,7 +137,7 @@ export default function VideoChat() {
       mediasoupClient,
       socket,
       roomId,
-      name,
+      email,
       () => {
         console.log("Room opened");
         setIsLoading(false);
@@ -93,39 +167,58 @@ export default function VideoChat() {
       rc.exit();
       socketIO.disconnect();
     };
-  }, [roomId, name, isLoadingStorage]);
+  }, [roomId, email]);
 
-  const initEnumerateDevices = () => {
-    const constraints = { audio: true, video: true };
+  const handleExit = async () => {
+    const confirmExit = window.confirm("Are you sure you want to end the meeting?");
+    if (!confirmExit) return;
+    
+    if (chatRef.current) {
+      await chatRef.current.closeChatConnection(); // ✅ Wait for WebSocket to close
+    }
 
-    navigator.mediaDevices
-      .getUserMedia(constraints)
-      .then((stream) => {
-        enumerateDevices();
-        stream.getTracks().forEach((track) => track.stop());
-      })
-      .catch((err) => {
-        console.error("Access denied for audio/video: ", err);
-      });
+    roomClient?.exit(); // ✅ Now safely exit after WebSocket is closed
+    socketRef.current?.disconnect();
+
+    localStorage.removeItem("room");
+    localStorage.removeItem("email");
+    localStorage.removeItem("isHost");
+
+    console.log("redirecting to /");
+    router.push("/");
   };
 
-  const enumerateDevices = () => {
-    navigator.mediaDevices.enumerateDevices().then((devices) => {
-      console.log("Devices:", devices);
-      setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
-      setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
-    });
-  };
+  // const initEnumerateDevices = () => {
+  //   const constraints = { audio: true, video: true };
 
-  if (isLoadingStorage || isLoading) {
-    return (
-      <h3 className="text-red-500 text-center mt-8">Loading....</h3>
-    );
-  }
+  //   navigator.mediaDevices
+  //     .getUserMedia(constraints)
+  //     .then((stream) => {
+  //       enumerateDevices();
+  //       stream.getTracks().forEach((track) => track.stop());
+  //     })
+  //     .catch((err) => {
+  //       console.error("Access denied for audio/video: ", err);
+  //     });
+  // };
 
-  if (!roomId || !name) {
+  // const enumerateDevices = () => {
+  //   navigator.mediaDevices.enumerateDevices().then((devices) => {
+  //     // console.log("Devices:", devices);
+  //     setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+  //     setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
+  //   });
+  // };
+
+  if (isLoading) {
     return (
-      <h3 className="text-red-500 text-center mt-8">Error: Missing room ID or name. Please go back and enter details.</h3>
+      <div className="w-full h-screen transition">
+        <NavPage />
+      <div className="bg-zinc-800/20 backdrop-blur-sm py-[43px] w-full"/>
+      <div className="flex items-center justify-center h-4/5">
+        <h3 className="text-red-500 text-center ">Loading....</h3>
+      </div>
+      </div>
     );
   }
 
@@ -144,12 +237,12 @@ export default function VideoChat() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-neutral-700/50 text-white flex flex-col items-center justify-start">
+    <div className="w-full min-h-screen bg-neutral-700/50 text-white flex flex-col items-center justify-start transition">
       <main className="flex flex-col items-center justify-start w-full min-h-screen bg-background p-4">
         <div className="flex justify-between items-center w-full rounded-xl px-4">
           <div className="px-4">
             <div className="text-white text-xl">
-              {"< "}Welcome to the meet, <span className="text-red-500">{name}</span> !
+              {"< "}Welcome to the meet, <span className="text-red-500">{email}</span> !
             </div>
           </div>
           <div>
@@ -179,22 +272,9 @@ export default function VideoChat() {
                         icon: (
                           <MdCallEnd className="text-2xl" />
                         ),
-                        label: "Leave Meeting",
+                        label: "End Meeting",
                         className: "px-8 bg-red-600/90 hover:bg-red-600/80",
-                        onClick: () => {
-                          roomClient?.exit()
-
-                          // Cleanup chat
-                          cleanupChat?.();
-
-                          // Clear local storage
-                          localStorage.removeItem("room");
-                          localStorage.removeItem("name");
-                          localStorage.removeItem("isHost");
-
-                          // Redirect user
-                          router.push("/");
-                        },
+                        onClick: handleExit,
                       },
                       {
                         id: "copyButton",
@@ -400,7 +480,10 @@ export default function VideoChat() {
                 </div>
                 <br />
                 <>
-                <h4 className="px-4 py-2"> Participants video </h4>
+                <h4 className="px-4 py-2 mb-3"> Participants video </h4>
+                {
+                  remoteMediaElements.length === 0 ? <div className="containers min-h-fit h-fit w-full gap-2 p-1 relative bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl flex items-center justify-center text-white/50">No participants</div> :
+                  <>
                 <div
                     id="remoteVideos"
                     className="containers min-h-fit h-fit w-full relative bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl flex flex-wrap justify-center gap-2 overflow-auto p-2"
@@ -420,7 +503,10 @@ export default function VideoChat() {
                           }}
                         ></div>
                       ))}
-                  </div>
+                </div>
+                </>
+                }
+
                 <div id="remoteAudios" ref={remoteAudiosRef}>
                   {remoteMediaElements
                     .filter((element) => element instanceof HTMLAudioElement)
@@ -442,7 +528,7 @@ export default function VideoChat() {
           </div>
           <div className="bg-background border border-zinc-800 rounded-xl shadow-xl mt-4 flex-1 overflow-hidden h-[87vh]">
             <div>
-              <Chat onCleanup={setCleanupChat}/>
+            <Chat ref={chatRef}/>
             </div>
           </div>
         </div>
@@ -450,6 +536,3 @@ export default function VideoChat() {
     </div>
   );
 }
-
-
-

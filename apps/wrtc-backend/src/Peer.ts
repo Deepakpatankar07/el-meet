@@ -2,14 +2,14 @@ import mediasoup from 'mediasoup';
 
 export default class Peer {
   id: string;
-  name: string;
+  email: string;
   transports: Map<string, mediasoup.types.Transport>;
   consumers: Map<string, mediasoup.types.Consumer>;
   producers: Map<string, mediasoup.types.Producer>;
 
-  constructor(socket_id: string, name: string) {
+  constructor(socket_id: string, email: string) {
     this.id = socket_id;
-    this.name = name;
+    this.email = email;
     this.transports = new Map();
     this.consumers = new Map();
     this.producers = new Map();
@@ -33,7 +33,7 @@ export default class Peer {
     this.producers.set(producer.id, producer);
 
     producer.on('transportclose', () => {
-      console.log('Producer transport close', { name: `${this.name}`, consumer_id: `${producer.id}` });
+      console.log('Producer transport close', { email: `${this.email}`, consumer_id: `${producer.id}` });
       producer.close();
       this.producers.delete(producer.id);
     });
@@ -70,7 +70,7 @@ export default class Peer {
     this.consumers.set(consumer.id, consumer);
 
     consumer.on('transportclose', () => {
-      console.log('Consumer transport close', { name: `${this.name}`, consumer_id: `${consumer.id}` });
+      console.log('Consumer transport close', { email: `${this.email}`, consumer_id: `${consumer.id}` });
       this.consumers.delete(consumer.id);
     });
 
