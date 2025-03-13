@@ -4,18 +4,19 @@ import { useState } from "react";
 import GradientButton from "./buttons/GradientButton";
 import NavPage from "./NavPage";
 import Modal from "./Modal";
+import Footer from "./Footer";
 
 const LandingPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAction, setIsAction] = useState<"create" | "join">("create");
 
   return (
-    <div className="min-h-screen w-full bg-background/50 backdrop-blur-md text-white flex flex-col items-center justify-start">
+    <div className="min-h-screen h-full w-full bg-background/50 backdrop-blur-md text-white flex flex-col items-center justify-start">
       {/* Navbar */}
       <NavPage />
       {/* Hero Section */}
       <div className="bg-zinc-800/20 backdrop-blur-sm py-[43px] w-full" />
-      <main className="text-center mt-12 flex flex-col items-center justify-center px-12">
+      <main className="text-center h-[60vh] md:h-[88vh] flex flex-col items-center justify-center px-12">
         <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold">
           Free Online Meeting <br /> Platform for{" "}
           <span className="text-blue-500">Everyone</span>
@@ -79,6 +80,9 @@ const LandingPage = () => {
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <Footer />
 
       {/* Modal */}
       {isModalOpen && (

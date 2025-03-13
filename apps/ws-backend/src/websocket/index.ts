@@ -6,6 +6,10 @@ import { WebSocket, WebSocketServer } from "ws";
 import { redisPub, redisSub } from "../redis";
 import z from "zod";
 
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_MESSAGES_PER_WINDOW = 100; // Max 100 messages per minute per user
+const rateLimitMap = new Map<number, { count: number; timestamp: number }>();
+
 interface User {
   ws: WebSocket;
   userId: number;
@@ -13,9 +17,9 @@ interface User {
 
 const MessageSchema = z.object({
   email: z.string(),
-    content: z.string(),
-    timestamp: z.number(),
-    messageId: z.number(),
+  content: z.string().min(1).max(1000),
+  timestamp: z.number(),
+  messageId: z.number(),
 });
 
 export const users = new Map<string, User[]>();
@@ -30,6 +34,25 @@ function checkUser(token: string): number | null {
   } catch (error) {
     return null;
   }
+}
+
+// Rate limiting function
+function checkRateLimit(userId: number): boolean {
+  const now = Date.now();
+  const userLimit = rateLimitMap.get(userId);
+
+  if (!userLimit || now - userLimit.timestamp > RATE_LIMIT_WINDOW) {
+    rateLimitMap.set(userId, { count: 1, timestamp: now });
+    return true;
+  }
+
+  if (userLimit.count >= MAX_MESSAGES_PER_WINDOW) {
+    return false;
+  }
+
+  userLimit.count += 1;
+  rateLimitMap.set(userId, userLimit);
+  return true;
 }
 
 /* --------------- Redis Subscription --------------- */
@@ -90,6 +113,12 @@ export function setupWebSocket(server: Server) {
       return;
     }
 
+    // Validate roomId to prevent injection
+    if (!/^[a-zA-Z0-9_-]+$/.test(roomId)) {
+      ws.close(1008, "Invalid roomId format");
+      return;
+    }
+
     // Verify room exists
     const room = await prisma.room.findFirst({
       where: { name: roomId },
@@ -144,15 +173,29 @@ export function setupWebSocket(server: Server) {
 
     /* --------------- Handle Incoming Messages --------------- */
     ws.on("message", async function message(data) {
-      ws.send(JSON.stringify({ event: "hello", messages:"--------hello--------"}));
       try {
+        // Rate limiting
+        if (!checkRateLimit(userId)) {
+          ws.send(
+            JSON.stringify({ event: "error", error: "Rate limit exceeded" })
+          );
+          return;
+        }
+
+        // ws.send(JSON.stringify({ event: "hello", messages:"--------hello--------"}));
         const parsedData = JSON.parse(data.toString());
-        
+
         console.log("Received message:", parsedData);
 
         const { action, room, email, content, cursor, limit } = parsedData;
-        if(action === "ping" && ws.readyState === WebSocket.OPEN && users.has(room)) {
-          ws.send(JSON.stringify({ event: "pong", messages:"--------pong--------"}));
+        if (
+          action === "ping" &&
+          ws.readyState === WebSocket.OPEN &&
+          users.has(room)
+        ) {
+          ws.send(
+            JSON.stringify({ event: "pong", messages: "--------pong--------" })
+          );
           return;
         } else if (action === "message") {
           if (!users.has(room)) {
@@ -161,17 +204,17 @@ export function setupWebSocket(server: Server) {
             );
             return;
           }
-            const messageData = await addChatMessage(room, email, content);
-            const redisPublishMessage = JSON.stringify({
-                event: "message",
-                ...messageData,
-            });
-            redisPub.publish(`room:${room}`, redisPublishMessage);
+          const messageData = await addChatMessage(room, email, content);
+          const redisPublishMessage = JSON.stringify({
+            event: "message",
+            ...messageData,
+          });
+          redisPub.publish(`room:${room}`, redisPublishMessage);
         } else if (action === "getHistory") {
-            const history = await getChatHistory(room, userId, cursor, limit);
-            ws.send(JSON.stringify({ event: "history", messages: history }));
+          const history = await getChatHistory(room, userId, cursor, limit);
+          ws.send(JSON.stringify({ event: "history", messages: history }));
         } else if (action === "endmeeting") {
-            console.log("Received endmeeting request:");
+          console.log("Received endmeeting request:");
           if (!userId || !room) {
             console.log("Invalid leave request: missing userId or roomId");
             return;
@@ -227,8 +270,7 @@ export function setupWebSocket(server: Server) {
 
       if (updatedUsers.length > 0) {
         users.set(roomId, updatedUsers);
-      }
-       else {
+      } else {
         users.delete(roomId); // Remove room if no users left
       }
 
@@ -268,15 +310,23 @@ async function addChatMessage(roomId: string, email: string, content: string) {
   const messageId = await redisPub.incr(`chat:${roomId}:id`);
   const score = timestamp * 1000000 + messageId;
   const message = { email, content, timestamp, messageId };
-  await redisPub.zAdd(`chat:${roomId}:messages`,{ score, value:JSON.stringify(message)});
+  await redisPub.zAdd(`chat:${roomId}:messages`, {
+    score,
+    value: JSON.stringify(message),
+  });
   return message;
 }
 
-async function getChatHistory(roomId: string, userId: number, cursor: number, limit: number): Promise<any[]> {
+async function getChatHistory(
+  roomId: string,
+  userId: number,
+  cursor: number,
+  limit: number
+): Promise<any[]> {
   try {
     const userJoinTime = await getUserJoinTime(userId, roomId);
     if (!userJoinTime) {
-      return []; 
+      return [];
     }
 
     const minScore = userJoinTime.getTime() * 1000000;

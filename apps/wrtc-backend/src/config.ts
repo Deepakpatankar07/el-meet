@@ -24,10 +24,10 @@ export default {
   listenIp: '0.0.0.0',
   listenPort: 8000,
   mediasoup: {
-    numWorkers: Object.keys(os.cpus()).length,
+    numWorkers: Math.max(os.cpus().length, 1),
     worker: {
-      rtcMinPort: 10000,
-      rtcMaxPort: 10100,
+      rtcMinPort: 40000,
+      rtcMaxPort: 49999,
       logLevel: 'warn',
       logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp']
     },
@@ -47,7 +47,7 @@ export default {
             'x-google-start-bitrate': 1000
           }
         }
-      ]as types.RtpCodecCapability[],
+      ] as types.RtpCodecCapability[],
     },
     webRtcTransport: {
       listenIps: [
@@ -57,7 +57,10 @@ export default {
         }
       ],
       maxIncomingBitrate: 1500000,
-      initialAvailableOutgoingBitrate: 1000000
-    }
-  }
+      initialAvailableOutgoingBitrate: 1000000,
+      enableUdp: true, // Enable UDP for better performance
+      enableTcp: true, // Fallback to TCP
+      preferUdp: true,
+    },
+  },
 };

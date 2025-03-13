@@ -11,13 +11,13 @@ export default class Room {
   constructor(room_id: string, worker: mediasoup.types.Worker, io: any) {
     this.id = room_id;
     this.io = io;
-    this.initializeRouter(worker);
+    this.initializeRouter(worker).catch((err) => console.error(`Router initialization failed for room ${room_id}`, err));
   }
 
   private async initializeRouter(worker: mediasoup.types.Worker): Promise<void> {
     try {
       const mediaCodecs = config.mediasoup.router.mediaCodecs;
-      if(!worker && !mediaCodecs) {
+      if(!worker || !mediaCodecs) {
         throw new Error('Worker or mediaCodecs not found');
       }
       this.router = await worker.createRouter({ mediaCodecs });
@@ -70,6 +70,9 @@ export default class Room {
       enableTcp: true,
       preferUdp: true,
       initialAvailableOutgoingBitrate,
+    }).catch((err) => {
+      console.error(`Failed to create WebRTC transport for ${socket_id}`, err);
+      throw err;
     });
 
     if (maxIncomingBitrate) {

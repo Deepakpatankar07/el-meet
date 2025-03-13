@@ -3,11 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RoomClient from "@/lib/RoomClient";
-import io , {Socket} from "socket.io-client";
+import io, { Socket } from "socket.io-client";
 import * as mediasoupClient from "mediasoup-client";
 import { MdCallEnd } from "react-icons/md";
 import { PiCopySimple, PiDevicesDuotone } from "react-icons/pi";
-import { LuCamera, LuCameraOff, LuMic, LuMicOff, LuScreenShare, LuScreenShareOff, LuVideo } from "react-icons/lu";
+import {
+  LuCamera,
+  LuCameraOff,
+  LuMic,
+  LuMicOff,
+  LuScreenShare,
+  LuScreenShareOff,
+  LuVideo,
+} from "react-icons/lu";
 import { HiOutlineSpeakerWave } from "react-icons/hi2";
 import Logo from "@/components/Logo";
 import { VideoPlaceholder } from "@/components/VideoPlaceholder";
@@ -18,8 +26,8 @@ import { WRTC_BACKEND_URL } from "@/config";
 
 export default function VideoChat() {
   const router = useRouter();
-  const { email, room:roomId } = useAppContext()
-  
+  const { email, room: roomId, token: jwtToken } = useAppContext();
+
   const [isLoading, setIsLoading] = useState(true);
   const chatRef = useRef<ChatRef>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -42,80 +50,115 @@ export default function VideoChat() {
   >([]);
 
   // Add this state at the top of your component
-const [permissionStatus, setPermissionStatus] = useState<{
-  camera: PermissionState | null;
-  microphone: PermissionState | null;
-}>({ camera: null, microphone: null });
+  const [permissionStatus, setPermissionStatus] = useState<{
+    camera: PermissionState | null;
+    microphone: PermissionState | null;
+  }>({ camera: null, microphone: null });
 
-// Check permissions for camera and microphone
-const checkPermissions = async () => {
-  try {
-    const cameraPerm = await navigator.permissions.query({ name: "camera" as PermissionName });
-    const micPerm = await navigator.permissions.query({ name: "microphone" as PermissionName });
+  // Check permissions for camera and microphone
+  const checkPermissions = async () => {
+    try {
+      const cameraPerm = await navigator.permissions.query({
+        name: "camera" as PermissionName,
+      });
+      const micPerm = await navigator.permissions.query({
+        name: "microphone" as PermissionName,
+      });
 
-    setPermissionStatus({ camera: cameraPerm.state, microphone: micPerm.state });
+      setPermissionStatus({
+        camera: cameraPerm.state,
+        microphone: micPerm.state,
+      });
 
-    // Listen for permission changes
-    cameraPerm.onchange = () => setPermissionStatus((prev) => ({ ...prev, camera: cameraPerm.state }));
-    micPerm.onchange = () => setPermissionStatus((prev) => ({ ...prev, microphone: micPerm.state }));
+      // Listen for permission changes
+      cameraPerm.onchange = () =>
+        setPermissionStatus((prev) => ({ ...prev, camera: cameraPerm.state }));
+      micPerm.onchange = () =>
+        setPermissionStatus((prev) => ({ ...prev, microphone: micPerm.state }));
 
-    return { camera: cameraPerm.state, microphone: micPerm.state };
-  } catch (err) {
-    console.error("Error checking permissions:", err);
-    return { camera: null, microphone: null };
-  }
-};
-
-// Request media permissions and enumerate devices
-const requestMediaPermissions = async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    enumerateDevices();
-    stream.getTracks().forEach((track) => track.stop());
-    return true;
-  } catch (err) {
-    console.error("Error requesting media permissions:", err);
-    return false;
-  }
-};
-
-// Combined initEnumerateDevices
-const initEnumerateDevices = async () => {
-  const perms = await checkPermissions();
-
-  if (perms.camera === "denied" || perms.microphone === "denied") {
-    console.warn("Camera or microphone permissions denied.");
-    // Don’t proceed; let the user trigger it manually
-    return;
-  }
-
-  if (perms.camera === "granted" && perms.microphone === "granted") {
-    enumerateDevices();
-  } else {
-    // Prompt for permissions if not yet decided
-    const granted = await requestMediaPermissions();
-    if (!granted) {
-      console.warn("User denied media permissions.");
+      return { camera: cameraPerm.state, microphone: micPerm.state };
+    } catch (err) {
+      console.error("Error checking permissions:", err);
+      return { camera: null, microphone: null };
     }
-  }
-};
+  };
 
-// Keep your enumerateDevices function as is (or enhance it slightly)
-const enumerateDevices = () => {
-  navigator.mediaDevices.enumerateDevices().then((devices) => {
-    setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
-    setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
-  }).catch((err) => {
-    console.error("Error enumerating devices:", err);
-  });
-};
+  // Request media permissions and enumerate devices
+  const requestMediaPermissions = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      enumerateDevices();
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch (err) {
+      console.error("Error requesting media permissions:", err);
+      return false;
+    }
+  };
+
+  // Combined initEnumerateDevices
+  const initEnumerateDevices = async () => {
+    const perms = await checkPermissions();
+
+    if (perms.camera === "denied" || perms.microphone === "denied") {
+      console.warn("Camera or microphone permissions denied.");
+      // Don’t proceed; let the user trigger it manually
+      return;
+    }
+
+    if (perms.camera === "granted" && perms.microphone === "granted") {
+      enumerateDevices();
+    } else {
+      // Prompt for permissions if not yet decided
+      const granted = await requestMediaPermissions();
+      if (!granted) {
+        console.warn("User denied media permissions.");
+      }
+    }
+  };
+
+  // Keep your enumerateDevices function as is (or enhance it slightly)
+  const enumerateDevices = () => {
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((devices) => {
+        setAudioDevices(
+          devices.filter((device) => device.kind === "audioinput")
+        );
+        setVideoDevices(
+          devices.filter((device) => device.kind === "videoinput")
+        );
+      })
+      .catch((err) => {
+        console.error("Error enumerating devices:", err);
+      });
+  };
 
   useEffect(() => {
     if (!roomId || !email) return;
 
+    if (
+      localStorage.getItem("room") !== roomId ||
+      localStorage.getItem("email") !== email ||
+      localStorage.getItem("token") !== jwtToken
+    ) {
+      console.error("Room ID, email or token mismatch. Redirecting to login.");
+      router.push("/login"); // Redirect to login if no token is found
+      return;
+    }
+
     console.log("Creating RoomClient instance");
 
-    const socketIO = io(`${WRTC_BACKEND_URL}`);
+    const socketIO = io(`${WRTC_BACKEND_URL}`, {
+      auth: { token: jwtToken },
+      transports: ["websocket"],
+      reconnection: true, // Automatically try to reconnect
+      reconnectionAttempts: 5, // Retry 5 times before giving up
+      reconnectionDelay: 1000, // Wait 1 second between retries
+    });
     socketRef.current = socketIO;
     const socket = Object.assign(socketIO, {
       request: (event: string, data?: any) => {
@@ -172,9 +215,11 @@ const enumerateDevices = () => {
   }, [roomId, email]);
 
   const handleExit = async () => {
-    const confirmExit = window.confirm("Are you sure you want to end the meeting?");
+    const confirmExit = window.confirm(
+      "Are you sure you want to end the meeting?"
+    );
     if (!confirmExit) return;
-    
+
     if (chatRef.current) {
       await chatRef.current.closeChatConnection(); // Wait for WebSocket to close
     }
@@ -193,36 +238,14 @@ const enumerateDevices = () => {
     router.push("/");
   };
 
-  // const initEnumerateDevices = () => {
-  //   const constraints = { audio: true, video: true };
-
-  //   navigator.mediaDevices
-  //     .getUserMedia(constraints)
-  //     .then((stream) => {
-  //       enumerateDevices();
-  //       stream.getTracks().forEach((track) => track.stop());
-  //     })
-  //     .catch((err) => {
-  //       console.error("Access denied for audio/video: ", err);
-  //     });
-  // };
-
-  // const enumerateDevices = () => {
-  //   navigator.mediaDevices.enumerateDevices().then((devices) => {
-  //     // console.log("Devices:", devices);
-  //     setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
-  //     setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
-  //   });
-  // };
-
   if (isLoading) {
     return (
       <div className="w-full h-screen transition">
         <NavPage />
-      <div className="bg-zinc-800/20 backdrop-blur-sm py-[43px] w-full"/>
-      <div className="flex items-center justify-center h-4/5">
-        <h3 className="text-red-500 text-center ">Loading....</h3>
-      </div>
+        <div className="bg-zinc-800/20 backdrop-blur-sm py-[43px] w-full" />
+        <div className="flex items-center justify-center h-4/5">
+          <h3 className="text-red-500 text-center ">Loading....</h3>
+        </div>
       </div>
     );
   }
@@ -247,7 +270,8 @@ const enumerateDevices = () => {
         <div className="flex justify-between items-center w-full rounded-xl px-4">
           <div className="px-4">
             <div className="text-white text-xl">
-              {"< "}Welcome to the meet, <span className="text-red-500">{email}</span> !
+              {"< "}Welcome to El-Meet,{" "}
+              <span className="text-red-500">{email}</span> !
             </div>
           </div>
           <div>
@@ -274,9 +298,7 @@ const enumerateDevices = () => {
                     {[
                       {
                         id: "exitButton",
-                        icon: (
-                          <MdCallEnd className="text-2xl" />
-                        ),
+                        icon: <MdCallEnd className="text-2xl" />,
                         label: "End Meeting",
                         className: "px-8 bg-red-600/90 hover:bg-red-600/80",
                         onClick: handleExit,
@@ -311,18 +333,21 @@ const enumerateDevices = () => {
 
                     {isAudioBtnVisible ? (
                       <button
-                      className="group relative flex items-center justify-center bg-white/5 backdrop-blur-sm text-white hover:bg-white/10 p-3 rounded-full transition-all shadow-md"
-                      id="startAudioButton"
-                      onClick={() => {
-                        roomClient?.produce(RoomClient.mediaType.audio, "default");
-                        setIsAudioBtnVisible(false);
-                      }}
-                    >
-                      <LuMic className="text-2xl" />
-                      <span className="absolute top-full min-w-fit text-nowrap mt-1 px-4 py-2 text-xs bg-zinc-900 text-white rounded-md hidden group-hover:inline-block transition">
-                        Open audio
-                      </span>
-                    </button>                    
+                        className="group relative flex items-center justify-center bg-white/5 backdrop-blur-sm text-white hover:bg-white/10 p-3 rounded-full transition-all shadow-md"
+                        id="startAudioButton"
+                        onClick={() => {
+                          roomClient?.produce(
+                            RoomClient.mediaType.audio,
+                            "default"
+                          );
+                          setIsAudioBtnVisible(false);
+                        }}
+                      >
+                        <LuMic className="text-2xl" />
+                        <span className="absolute top-full min-w-fit text-nowrap mt-1 px-4 py-2 text-xs bg-zinc-900 text-white rounded-md hidden group-hover:inline-block transition">
+                          Open audio
+                        </span>
+                      </button>
                     ) : (
                       <button
                         className="group relative flex items-center justify-center bg-white/5 backdrop-blur-sm text-white hover:bg-white/10 p-3 rounded-full transition-all shadow-md"
@@ -420,7 +445,7 @@ const enumerateDevices = () => {
                             if (node && !node.hasChildNodes()) {
                               element.style.transform = "scaleX(-1)";
                               element.style.objectFit = "cover";
-                              node.appendChild(element); 
+                              node.appendChild(element);
                             }
                           }}
                         ></div>
@@ -485,55 +510,60 @@ const enumerateDevices = () => {
                 </div>
                 <br />
                 <>
-                <h4 className="px-4 py-2 mb-3"> Participants video </h4>
-                {
-                  remoteMediaElements.length === 0 ? <div className="containers min-h-fit h-fit w-full gap-2 p-1 relative bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl flex items-center justify-center text-white/50">No participants</div> :
-                  <>
-                <div
-                    id="remoteVideos"
-                    className="containers min-h-fit h-fit w-full relative bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl flex flex-wrap justify-center gap-2 overflow-auto p-2"
-                    ref={remoteVideosRef}
-                  >
+                  <h4 className="px-4 py-2 mb-3"> Participants video </h4>
+                  {remoteMediaElements.length === 0 ? (
+                    <div className="containers min-h-fit h-fit w-full gap-2 p-1 relative bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl flex items-center justify-center text-white/50">
+                      No participants
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        id="remoteVideos"
+                        className="containers min-h-fit h-fit w-full relative bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl flex flex-wrap justify-center gap-2 overflow-auto p-2"
+                        ref={remoteVideosRef}
+                      >
+                        {remoteMediaElements
+                          .filter(
+                            (element) => element instanceof HTMLVideoElement
+                          )
+                          .map((element) => (
+                            <div
+                              key={element.id}
+                              className="w-[32%] aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center"
+                              ref={(node) => {
+                                if (node) {
+                                  node.innerHTML = "";
+                                  node.appendChild(element);
+                                }
+                              }}
+                            ></div>
+                          ))}
+                      </div>
+                    </>
+                  )}
+
+                  <div id="remoteAudios" ref={remoteAudiosRef}>
                     {remoteMediaElements
-                      .filter((element) => element instanceof HTMLVideoElement)
+                      .filter((element) => element instanceof HTMLAudioElement)
                       .map((element) => (
                         <div
                           key={element.id}
-                          className="w-[32%] aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center"
                           ref={(node) => {
                             if (node) {
                               node.innerHTML = "";
-                              node.appendChild(element); 
+                              node.appendChild(element);
                             }
                           }}
                         ></div>
                       ))}
-                </div>
-                </>
-                }
-
-                <div id="remoteAudios" ref={remoteAudiosRef}>
-                  {remoteMediaElements
-                    .filter((element) => element instanceof HTMLAudioElement)
-                    .map((element) => (
-                      <div
-                        key={element.id}
-                        ref={(node) => {
-                          if (node) {
-                            node.innerHTML = "";
-                            node.appendChild(element);
-                          }
-                        }}
-                      ></div>
-                    ))}
-                </div>
+                  </div>
                 </>
               </div>
             </div>
           </div>
           <div className="bg-background border border-zinc-800 rounded-xl shadow-xl mt-4 flex-1 overflow-hidden h-[87vh]">
             <div>
-            <Chat ref={chatRef}/>
+              <Chat ref={chatRef} />
             </div>
           </div>
         </div>

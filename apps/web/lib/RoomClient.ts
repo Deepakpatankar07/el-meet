@@ -131,14 +131,14 @@ export default class RoomClient extends EventEmitter {
         console.log('Joined to room', e);
 
         const data = await this.socket.request('getRouterRtpCapabilities');
-        // console.log('getRouterRtpCapabilities:', data);
+        console.log('getRouterRtpCapabilities:', data);
 
         const device = await this.loadDevice(data);
-        // console.log("device", device);
+        console.log("device", device);
 
         this.device = device;
-        const res = await this.initTransports(device);
-        // console.log("initTransports response:", res);
+        await this.initTransports(device);
+        console.log("initTransports successfull");
         
         this.socket.emit('getProducers');
       })
@@ -163,6 +163,11 @@ export default class RoomClient extends EventEmitter {
   }
 
   private async initTransports(device: any): Promise<void> {
+    // STUN servers configuration
+    const iceServers = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ];
     // Initialize producerTransport
     {
       const data = await this.socket.request('createWebRtcTransport', {
@@ -175,7 +180,7 @@ export default class RoomClient extends EventEmitter {
         return;
       }
   
-      this.producerTransport = device.createSendTransport(data);
+      this.producerTransport = device.createSendTransport({ ...data, iceServers, });
 
       this.producerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
         try {
@@ -232,7 +237,7 @@ export default class RoomClient extends EventEmitter {
         return;
       }
   
-      this.consumerTransport = device.createRecvTransport(data);
+      this.consumerTransport = device.createRecvTransport({ ...data, iceServers, });
 
       this.consumerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
         try {

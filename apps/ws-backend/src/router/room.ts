@@ -159,10 +159,11 @@ router.post("/join", authMiddleware, async (req: Request, res: Response) => {
 router.post("/allparticipants", authMiddleware, async (req: Request, res: Response) => {
   try {
     const { roomName } = req.body;
-    if (!roomName) {
-      res.status(400).json({ message: "Room name is required" });
+    if (!roomName || typeof roomName !== "string") {
+      res.status(400).json({ message: "Room name is required and must be a string" });
       return;
     }
+    
     const room = await prisma.room.findFirst({
       where: { name: roomName },
       include: {

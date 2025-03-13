@@ -3,7 +3,7 @@ services:
     image: redis
     container_name: el-meet-redis
     ports:
-      - "6888:6379"
+      - "6379:6379"
     networks:
       - my-network
 
