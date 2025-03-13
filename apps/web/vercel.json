@@ -1,0 +1,11 @@
+{
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "buildCommand": "pnpm run lint && pnpm run type-check && pnpm run build",
+  "outputDirectory": ".next",
+  "installCommand": "pnpm install"
+}
