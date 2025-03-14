@@ -1,11 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
 @layer utilities {
+  .bg-background {
+    background-color: var(--background);
+  }
   .bg-theme {
     background-color: var(--background);
   }
+  .border-gradient {
+    border: 2px solid transparent;
+    border-image: linear-gradient(to right, #3b82f6, #8b5cf6, #ec4899) 1;
+    border-image-slice: 1;
+  }
 }
+
 
 :root {
   --background: #0d0d0d;

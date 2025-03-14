@@ -16,12 +16,12 @@ const LandingPage = () => {
       <NavPage />
       {/* Hero Section */}
       <div className="bg-zinc-800/20 backdrop-blur-sm py-[43px] w-full" />
-      <main className="text-center h-[60vh] md:h-[88vh] flex flex-col items-center justify-center px-12">
-        <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold">
+      <main className="text-center h-[60vh] md:h-[90vh] flex flex-col items-center justify-center px-12">
+        <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold select-none pointer-events-none">
           Free Online Meeting <br /> Platform for{" "}
           <span className="text-blue-500">Everyone</span>
         </h1>
-        <p className="text-gray-400 mt-4 md:max-w-xl max-w-sm mx-auto md:text-base text-xs">
+        <p className="text-gray-400 mt-4 md:max-w-xl max-w-sm mx-auto md:text-base text-xs select-none pointer-events-none">
           Nowadays you can collaborate with people all over the world, use our
           product for a feature-rich collaboration experience and it's also
           free.

@@ -19,7 +19,8 @@ export const GradientButton = ({ children, onClick, size = "small"}: ButtonProps
       className={`inline-flex cursor-pointer hover:shadow-md text-white `}
     >
       <div className={`relative inline-flex items-center justify-center px-[1px] py-[1px] rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500`}>
-        <button className={`relative flex items-center justify-center w-full h-full ${sizeClasses[size]} font-semibold text-white transition-all duration-300 bg-background rounded-full`}>
+        <button className={`relative flex items-center justify-center w-full h-full ${sizeClasses[size]} font-semibold text-white transition-all duration-300 bg-background rounded-full`}
+        style={{ backgroundColor: 'var(--background, #0d0d0d)' }}>
           {children}
         </button>
       </div>

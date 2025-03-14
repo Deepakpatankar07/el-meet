@@ -1,5 +1,5 @@
 {
-  "name": "excledraw",
+  "name": "elmeet",
   "private": true,
   "scripts": {
     "build": "turbo build",
