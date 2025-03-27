@@ -1,7 +1,225 @@
+// "use client";
+
+// import { useEffect, useRef, useState } from "react";
+// import { useRouter } from "next/navigation";
+// import RoomClient from "@/lib/RoomClient";
+// import io, { Socket } from "socket.io-client";
+// import * as mediasoupClient from "mediasoup-client";
+// import { MdCallEnd } from "react-icons/md";
+// import { PiCopySimple, PiDevicesDuotone } from "react-icons/pi";
+// import {
+//   LuCamera,
+//   LuCameraOff,
+//   LuMic,
+//   LuMicOff,
+//   LuScreenShare,
+//   LuScreenShareOff,
+//   LuVideo,
+// } from "react-icons/lu";
+// import { HiOutlineSpeakerWave } from "react-icons/hi2";
+// import Logo from "@/components/Logo";
+// import { VideoPlaceholder } from "@/components/VideoPlaceholder";
+// import { useAppContext } from "@/context/AppContext";
+// import Chat, { ChatRef } from "@/components/Chat";
+// import NavPage from "@/components/NavPage";
+// import { WRTC_BACKEND_URL } from "@/config";
+
+// export default function VideoChat() {
+//   const router = useRouter();
+//   const { email, room: roomId, token: jwtToken } = useAppContext();
+
+//   const [isLoading, setIsLoading] = useState(true);
+//   const chatRef = useRef<ChatRef>(null);
+//   const socketRef = useRef<Socket | null>(null);
+
+//   const localMediaRef = useRef<HTMLDivElement>(null);
+//   const remoteVideosRef = useRef<HTMLDivElement>(null);
+//   const remoteAudiosRef = useRef<HTMLDivElement>(null);
+//   const [roomClient, setRoomClient] = useState<RoomClient | null>(null);
+//   const [isDevicesVisible, setIsDevicesVisible] = useState(false);
+//   const [isVideoBtnVisible, setIsVideoBtnVisible] = useState(true);
+//   const [isAudioBtnVisible, setIsAudioBtnVisible] = useState(true);
+//   const [isScreenBtnVisible, setIsScreenBtnVisible] = useState(true);
+//   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+//   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+//   const [localMediaElements, setLocalMediaElements] = useState<
+//     (HTMLVideoElement | HTMLAudioElement)[]
+//   >([]);
+//   const [remoteMediaElements, setRemoteMediaElements] = useState<
+//     (HTMLVideoElement | HTMLAudioElement)[]
+//   >([]);
+
+//   // Add this state at the top of your component
+//   const [, setPermissionStatus] = useState<{
+//     camera: PermissionState | null;
+//     microphone: PermissionState | null;
+//   }>({ camera: null, microphone: null });
+
+//   // Check permissions for camera and microphone
+//   const checkPermissions = async () => {
+//     try {
+//       const cameraPerm = await navigator.permissions.query({
+//         name: "camera" as PermissionName,
+//       });
+//       const micPerm = await navigator.permissions.query({
+//         name: "microphone" as PermissionName,
+//       });
+
+//       setPermissionStatus({
+//         camera: cameraPerm.state,
+//         microphone: micPerm.state,
+//       });
+
+//       // Listen for permission changes
+//       cameraPerm.onchange = () =>
+//         setPermissionStatus((prev) => ({ ...prev, camera: cameraPerm.state }));
+//       micPerm.onchange = () =>
+//         setPermissionStatus((prev) => ({ ...prev, microphone: micPerm.state }));
+
+//       return { camera: cameraPerm.state, microphone: micPerm.state };
+//     } catch (err) {
+//       console.error("Error checking permissions:", err);
+//       return { camera: null, microphone: null };
+//     }
+//   };
+
+//   // Request media permissions and enumerate devices
+//   const requestMediaPermissions = async () => {
+//     try {
+//       const stream = await navigator.mediaDevices.getUserMedia({
+//         audio: true,
+//         video: true,
+//       });
+//       enumerateDevices();
+//       stream.getTracks().forEach((track) => track.stop());
+//       return true;
+//     } catch (err) {
+//       console.error("Error requesting media permissions:", err);
+//       return false;
+//     }
+//   };
+
+//   // Keep your enumerateDevices function as is (or enhance it slightly)
+//   const enumerateDevices = () => {
+//     navigator.mediaDevices
+//       .enumerateDevices()
+//       .then((devices) => {
+//         setAudioDevices(
+//           devices.filter((device) => device.kind === "audioinput")
+//         );
+//         setVideoDevices(
+//           devices.filter((device) => device.kind === "videoinput")
+//         );
+//       })
+//       .catch((err) => {
+//         console.error("Error enumerating devices:", err);
+//       });
+//   };
+
+//   // Combined initEnumerateDevices
+//   const initEnumerateDevices = async () => {
+//     const perms = await checkPermissions();
+
+//     if (perms.camera === "denied" || perms.microphone === "denied") {
+//       console.warn("Camera or microphone permissions denied.");
+//       // Don’t proceed; let the user trigger it manually
+//       return;
+//     }
+
+//     if (perms.camera === "granted" && perms.microphone === "granted") {
+//       enumerateDevices();
+//     } else {
+//       // Prompt for permissions if not yet decided
+//       const granted = await requestMediaPermissions();
+//       if (!granted) {
+//         console.warn("User denied media permissions.");
+//       }
+//     }
+//   };
+
+//   useEffect(() => {
+//     if (!roomId || !email) return;
+
+//     if (
+//       localStorage.getItem("room") !== roomId ||
+//       localStorage.getItem("email") !== email ||
+//       localStorage.getItem("token") !== jwtToken
+//     ) {
+//       console.error("Room ID, email or token mismatch. Redirecting to login.");
+//       router.push("/login"); // Redirect to login if no token is found
+//       return;
+//     }
+
+//     console.log("Creating RoomClient instance");
+
+//     const socketIO = io(`${WRTC_BACKEND_URL}`, {
+//       auth: { token: jwtToken },
+//       transports: ["websocket"],
+//       reconnection: true, // Automatically try to reconnect
+//       reconnectionAttempts: 5, // Retry 5 times before giving up
+//       reconnectionDelay: 1000, // Wait 1 second between retries
+//     });
+//     socketRef.current = socketIO;
+//     const socket = Object.assign(socketIO, {
+//       request: (event: string, data?: any) => {
+//         return new Promise((resolve, reject) => {
+//           socketIO.emit(event, data, (response: any) => {
+//             if (response?.error) reject(response.error);
+//             else resolve(response);
+//           });
+//         });
+//       },
+//     });
+
+//     initEnumerateDevices();
+
+//     const rc = new RoomClient(
+//       localMediaRef.current!,
+//       remoteVideosRef.current!,
+//       remoteAudiosRef.current!,
+//       mediasoupClient,
+//       socket,
+//       roomId,
+//       email,
+//       () => {
+//         console.log("Room opened");
+//         setIsLoading(false);
+//       },
+//       (element) => {
+//         setLocalMediaElements((prev) => [...prev, element]);
+//       },
+//       (elementId) => {
+//         setLocalMediaElements((prev) =>
+//           prev.filter((el) => el.id !== elementId)
+//         );
+//       },
+//       (element) => {
+//         setRemoteMediaElements((prev) => [...prev, element]);
+//       },
+//       (elementId) => {
+//         setRemoteMediaElements((prev) =>
+//           prev.filter((el) => el.id !== elementId)
+//         );
+//       }
+//     );
+
+//     setRoomClient(rc);
+
+//     return () => {
+//       console.log("Cleaning up RoomClient instance");
+//       if (rc) {
+//         rc.exit(); // Call exit only if rc exists
+//       }
+//       socketIO.disconnect();
+//     };
+//   }, [roomId, email, jwtToken, router]);
+
+
+
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import RoomClient from "@/lib/RoomClient";
 import io, { Socket } from "socket.io-client";
 import * as mediasoupClient from "mediasoup-client";
@@ -23,6 +241,11 @@ import { useAppContext } from "@/context/AppContext";
 import Chat, { ChatRef } from "@/components/Chat";
 import NavPage from "@/components/NavPage";
 import { WRTC_BACKEND_URL } from "@/config";
+
+interface SocketResponse {
+  error?: string | Error; // Define the shape of the error property
+  [key: string]: unknown; // Allow other properties
+}
 
 export default function VideoChat() {
   const router = useRouter();
@@ -49,14 +272,7 @@ export default function VideoChat() {
     (HTMLVideoElement | HTMLAudioElement)[]
   >([]);
 
-  // Add this state at the top of your component
-  const [permissionStatus, setPermissionStatus] = useState<{
-    camera: PermissionState | null;
-    microphone: PermissionState | null;
-  }>({ camera: null, microphone: null });
-
-  // Check permissions for camera and microphone
-  const checkPermissions = async () => {
+  const checkPermissions = useCallback(async () => {
     try {
       const cameraPerm = await navigator.permissions.query({
         name: "camera" as PermissionName,
@@ -65,26 +281,26 @@ export default function VideoChat() {
         name: "microphone" as PermissionName,
       });
 
-      setPermissionStatus({
-        camera: cameraPerm.state,
-        microphone: micPerm.state,
-      });
-
-      // Listen for permission changes
-      cameraPerm.onchange = () =>
-        setPermissionStatus((prev) => ({ ...prev, camera: cameraPerm.state }));
-      micPerm.onchange = () =>
-        setPermissionStatus((prev) => ({ ...prev, microphone: micPerm.state }));
-
       return { camera: cameraPerm.state, microphone: micPerm.state };
     } catch (err) {
       console.error("Error checking permissions:", err);
       return { camera: null, microphone: null };
     }
-  };
+  }, []);
 
-  // Request media permissions and enumerate devices
-  const requestMediaPermissions = async () => {
+  const enumerateDevices = useCallback(() => {
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((devices) => {
+        setAudioDevices(devices.filter((device) => device.kind === "audioinput"));
+        setVideoDevices(devices.filter((device) => device.kind === "videoinput"));
+      })
+      .catch((err) => {
+        console.error("Error enumerating devices:", err);
+      });
+  }, []);
+
+  const requestMediaPermissions = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -97,45 +313,25 @@ export default function VideoChat() {
       console.error("Error requesting media permissions:", err);
       return false;
     }
-  };
+  }, [enumerateDevices]);
 
-  // Combined initEnumerateDevices
-  const initEnumerateDevices = async () => {
+  const initEnumerateDevices = useCallback(async () => {
     const perms = await checkPermissions();
 
     if (perms.camera === "denied" || perms.microphone === "denied") {
       console.warn("Camera or microphone permissions denied.");
-      // Don’t proceed; let the user trigger it manually
       return;
     }
 
     if (perms.camera === "granted" && perms.microphone === "granted") {
       enumerateDevices();
     } else {
-      // Prompt for permissions if not yet decided
       const granted = await requestMediaPermissions();
       if (!granted) {
         console.warn("User denied media permissions.");
       }
     }
-  };
-
-  // Keep your enumerateDevices function as is (or enhance it slightly)
-  const enumerateDevices = () => {
-    navigator.mediaDevices
-      .enumerateDevices()
-      .then((devices) => {
-        setAudioDevices(
-          devices.filter((device) => device.kind === "audioinput")
-        );
-        setVideoDevices(
-          devices.filter((device) => device.kind === "videoinput")
-        );
-      })
-      .catch((err) => {
-        console.error("Error enumerating devices:", err);
-      });
-  };
+  }, [checkPermissions, enumerateDevices, requestMediaPermissions]);
 
   useEffect(() => {
     if (!roomId || !email) return;
@@ -145,8 +341,8 @@ export default function VideoChat() {
       localStorage.getItem("email") !== email ||
       localStorage.getItem("token") !== jwtToken
     ) {
-      console.error("Room ID, email or token mismatch. Redirecting to login.");
-      router.push("/login"); // Redirect to login if no token is found
+      console.error("Room ID, email, or token mismatch. Redirecting to login.");
+      router.push("/login");
       return;
     }
 
@@ -155,17 +351,20 @@ export default function VideoChat() {
     const socketIO = io(`${WRTC_BACKEND_URL}`, {
       auth: { token: jwtToken },
       transports: ["websocket"],
-      reconnection: true, // Automatically try to reconnect
-      reconnectionAttempts: 5, // Retry 5 times before giving up
-      reconnectionDelay: 1000, // Wait 1 second between retries
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
     socketRef.current = socketIO;
     const socket = Object.assign(socketIO, {
-      request: (event: string, data?: any) => {
+      request: (event: string, data?: unknown) => {
         return new Promise((resolve, reject) => {
-          socketIO.emit(event, data, (response: any) => {
-            if (response?.error) reject(response.error);
-            else resolve(response);
+          socketIO.emit(event, data, (response: SocketResponse) => {
+            if (response?.error) {
+              reject(response.error);
+            } else {
+              resolve(response);
+            }
           });
         });
       },
@@ -189,17 +388,13 @@ export default function VideoChat() {
         setLocalMediaElements((prev) => [...prev, element]);
       },
       (elementId) => {
-        setLocalMediaElements((prev) =>
-          prev.filter((el) => el.id !== elementId)
-        );
+        setLocalMediaElements((prev) => prev.filter((el) => el.id !== elementId));
       },
       (element) => {
         setRemoteMediaElements((prev) => [...prev, element]);
       },
       (elementId) => {
-        setRemoteMediaElements((prev) =>
-          prev.filter((el) => el.id !== elementId)
-        );
+        setRemoteMediaElements((prev) => prev.filter((el) => el.id !== elementId));
       }
     );
 
@@ -208,11 +403,11 @@ export default function VideoChat() {
     return () => {
       console.log("Cleaning up RoomClient instance");
       if (rc) {
-        rc.exit(); // Call exit only if rc exists
+        rc.exit();
       }
       socketIO.disconnect();
     };
-  }, [roomId, email]);
+  }, [roomId, email, jwtToken, router, initEnumerateDevices]);
 
   const handleExit = async () => {
     const confirmExit = window.confirm(

@@ -32,7 +32,11 @@ function Modal({isAction, onSelect }: { isAction:string,onSelect: (value: boolea
 
       setEmail(res.data.email);
       setRoom(res.data.roomName);
-      isAction === "create" ? setIsHost(true) : setIsHost(false);
+      if (isAction === "create") {
+        setIsHost(true);
+      } else {
+        setIsHost(false);
+      }
 
       router.push(`/room`); 
     } catch (error) {

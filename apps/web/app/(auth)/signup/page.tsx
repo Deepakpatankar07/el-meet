@@ -28,7 +28,7 @@ export default function SignupPage() {
         toast.success(res.data.message);
         router.push("/login");
       }
-    } catch (error:any) {
+    } catch (error) {
         console.warn(error)
     } finally {
       setIsLoading(false);

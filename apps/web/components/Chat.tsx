@@ -90,6 +90,7 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
 
     messageContainer.addEventListener("scroll", handleScroll);
     return () => messageContainer.removeEventListener("scroll", handleScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingHistory, allHistoryLoaded]);
 
   // useEffect(() => {
@@ -211,11 +212,12 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
       clearInterval(heartbeatInterval);
       console.log("Cleaning up WebSocket for room:", room);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room, ws, email, loading]);
 
   const sendMessage = () => {
     if (ws && ws.readyState === WebSocket.OPEN && input.trim()) {
-      let data = { action: "message", room, email, content: input.trim() };
+      const data = { action: "message", room, email, content: input.trim() };
       console.log("Sending message:", JSON.stringify(data));
       ws.send(JSON.stringify(data));
       setInput("");
@@ -385,4 +387,6 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
   );
 });
 
+
+Chat.displayName = "Chat";
 export default Chat;

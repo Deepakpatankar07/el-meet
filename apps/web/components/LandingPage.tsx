@@ -23,7 +23,7 @@ const LandingPage = () => {
         </h1>
         <p className="text-gray-400 mt-4 md:max-w-xl max-w-sm mx-auto md:text-base text-xs select-none pointer-events-none">
           Nowadays you can collaborate with people all over the world, use our
-          product for a feature-rich collaboration experience and it's also
+          product for a feature-rich collaboration experience and {`it's`} also
           free.
         </p>
         <div className="mt-10 flex items-center gap-4">

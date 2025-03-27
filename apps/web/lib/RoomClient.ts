@@ -8,7 +8,7 @@ const mediaType = {
   screen: 'screen',
 } as const;
 
-type MediaType = keyof typeof mediaType;
+// type MediaType = keyof typeof mediaType;
 
 type EventTypes =
   | 'exitRoom'
@@ -33,13 +33,18 @@ const _EVENTS: Record<EventTypes, EventTypes> = {
 
 
 interface Socket {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   request(event: string, payload?: any): Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   emit(event: string, payload?: any): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on(event: string, callback: (data: any) => void): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   off(event: string, callback?: (data: any) => void): void;
 }
 
 interface MediasoupClient {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Device: any;
 }
 
@@ -50,13 +55,18 @@ export default class RoomClient extends EventEmitter {
   private remoteAudioEl: HTMLElement;
   private mediasoupClient: MediasoupClient;
   private socket: Socket;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private producerTransport: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private consumerTransport: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private device: any;
   private room_id: string;
   private isVideoOnFullScreen: boolean = false;
   private isDevicesVisible: boolean = false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private consumers: Map<string, any> = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private producers: Map<string, any> = new Map();
   private producerLabel: Map<string, string> = new Map();
   private _isOpen: boolean = false;
@@ -147,12 +157,14 @@ export default class RoomClient extends EventEmitter {
       });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async loadDevice(routerRtpCapabilities: any): Promise<any> {
     let device;
     try {
       device = new this.mediasoupClient.Device();
-    } catch (error: any) {
-      if (error.email === 'UnsupportedError') {
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((error as any).email === 'UnsupportedError') {
         console.error('Browser not supported');
         alert('Browser not supported');
       }
@@ -162,6 +174,7 @@ export default class RoomClient extends EventEmitter {
     return device;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async initTransports(device: any): Promise<void> {
     // STUN servers configuration
     const iceServers = [
@@ -182,6 +195,7 @@ export default class RoomClient extends EventEmitter {
   
       this.producerTransport = device.createSendTransport({ ...data, iceServers, });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.producerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
         try {
           await this.socket.request('connectTransport', {
@@ -194,6 +208,7 @@ export default class RoomClient extends EventEmitter {
         }
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.producerTransport.on('produce', async ({ kind, rtpParameters }: any, callback: any, errback: any) => {
         try {
           const { producer_id } = await this.socket.request('produce', {
@@ -239,6 +254,7 @@ export default class RoomClient extends EventEmitter {
   
       this.consumerTransport = device.createRecvTransport({ ...data, iceServers, });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.consumerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
         try {
           await this.socket.request('connectTransport', {
@@ -471,6 +487,7 @@ export default class RoomClient extends EventEmitter {
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async getConsumeStream(producerId: string): Promise<{ consumer: any; stream: MediaStream; kind: string }> {
     const { rtpCapabilities } = this.device!;
     const data = await this.socket.request('consume', {
@@ -597,7 +614,7 @@ export default class RoomClient extends EventEmitter {
   }
 
   ///////  HELPERS //////////
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
   public async roomInfo(): Promise<any> {
     return await this.socket.request('getMyRoomInfo');
   }
@@ -613,6 +630,7 @@ export default class RoomClient extends EventEmitter {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public override on(evt: string, callback: (...args: any[]) => void): this {
     if (!this.eventListeners.has(evt)) {
       this.eventListeners.set(evt, []);

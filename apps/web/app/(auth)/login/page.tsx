@@ -29,7 +29,7 @@ export default function LoginPage() {
         toast.success(res.data.message);
         router.push("/");
       }
-    } catch (error:any) {
+    } catch (error) {
         console.warn(error)
     } finally {
       setIsLoading(false);

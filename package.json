@@ -5,7 +5,12 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "db:generate": "cd packages/db && npx prisma generate && cd ../..",
+    "start:web": "cd apps/web && pnpm run start",
+    "start:backend": "cd apps/backend && pnpm run start",
+    "start:websocket": "cd apps/websocket && pnpm run start"
   },
   "devDependencies": {
     "@types/node": "^22.10.6",
