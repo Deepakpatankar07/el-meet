@@ -1,4 +1,41 @@
 services:
+  frontend:
+    image: web:latest
+    container_name: el-meet-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - ws-backend
+    networks:
+      - my-network
+
+  backend:
+    image: wrtc:latest
+    container_name: el-meet-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgresql://el-meet-postgres-user:mysecretpassword@postgres:5432/el-meet-postgres-db
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - my-network
+  ws-backend:
+    image: ws-be:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgresql://el-meet-postgres-user:mysecretpassword@postgres:5432/el-meet-postgres-db
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - my-network
   redis:
     image: redis
     container_name: el-meet-redis
