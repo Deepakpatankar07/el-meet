@@ -1,4 +1,4 @@
-name: Continuous Deployment (Prod) for WebRTC Backend
+name: Continuous Deployment (Prod) for WebSocket Backend
 on:
   push:
     branches:
@@ -9,10 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0 # Fetch all history for all branches and tags
-
+        uses: actions/checkout@v2
+      
       - name: Docker login
         uses: docker/login-action@v2
         with:
@@ -26,3 +24,33 @@ jobs:
           file: ./docker/server-ws/Dockerfile
           push: true
           tags: iamdeepakpatankar/elmeet-ws-backend:${{ github.sha }}
+          build-args: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+
+      - name: Replace github.sha in docker-compose-ws.yml
+        run: |
+          sed -i "s/\${{ github.sha }}/${{ github.sha }}/g" docker-compose-ws.yml
+
+      - name: Create .env file for Docker Compose
+        run: |
+          cat << 'EOF' > .env
+          PORT=${{ secrets.WS_PORT }}
+          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          REDIS_HOST=redis
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          JWT_PASSWORD=${{ secrets.JWT_PASSWORD }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          EOF
+
+      - name: Deploy to the VM
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key
+          mkdir -p /home/runner/.ssh
+          chmod 700 /home/runner/ssh_key
+          # Copy docker-compose-ws.yml to Droplet
+          scp -o StrictHostKeyChecking=no -i ~/ssh_key docker-compose-ws.yml root@64.227.184.155:/root/docker-compose-ws.yml
+          # Copy .env file to Droplet
+          scp -o StrictHostKeyChecking=no -i ~/ssh_key .env root@64.227.184.155:/root/.env
+          # Deploy using docker-compose
+          ssh -o StrictHostKeyChecking=no -i ~/ssh_key root@64.227.184.155 -t "docker-compose -f /root/docker-compose-ws.yml down && docker-compose -f /root/docker-compose-ws.yml up -d"

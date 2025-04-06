@@ -15,6 +15,14 @@ COPY apps/web ./apps/web
 # Install project dependencies
 RUN pnpm install --frozen-lockfile
 
+# Set build-time environment variables
+ARG NEXT_PUBLIC_WRTC_BACKEND_URL
+ARG NEXT_PUBLIC_WS_BACKEND_URL
+ARG NEXT_PUBLIC_WebSocket_URL
+ENV NEXT_PUBLIC_WRTC_BACKEND_URL=$NEXT_PUBLIC_WRTC_BACKEND_URL
+ENV NEXT_PUBLIC_WS_BACKEND_URL=$NEXT_PUBLIC_WS_BACKEND_URL
+ENV NEXT_PUBLIC_WebSocket_URL=$NEXT_PUBLIC_WebSocket_URL
+
 # Expose port for the client app
 EXPOSE 3000
 

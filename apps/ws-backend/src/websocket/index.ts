@@ -26,6 +26,8 @@ export const users = new Map<string, User[]>();
 
 function checkUser(token: string): number | null {
   try {
+    if (!token || JWT_PASSWORD === undefined) return null;
+
     const decoded = jwt.verify(token, JWT_PASSWORD);
     if (typeof decoded === "object" && decoded.userId) {
       return decoded.userId;

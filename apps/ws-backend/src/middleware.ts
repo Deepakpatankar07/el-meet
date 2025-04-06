@@ -14,6 +14,12 @@ export function authMiddleware(
     });
     return;
   }
+  if(JWT_PASSWORD === undefined) {
+    res.status(500).json({
+      message: "JWT_PASSWORD is not defined",
+    });
+    return;
+  }
 
   try {
     const payload = jwt.verify(token, JWT_PASSWORD);

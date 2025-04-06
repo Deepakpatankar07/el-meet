@@ -41,7 +41,7 @@ app.use(helmet({
 
 // Restrict CORS to your frontend domain in production
 app.use(cors({
-  origin: process.env.PROD_FRONTEND_URL || "http://localhost:3000",
+  origin: process.env.FRONTEND_URL,
   credentials: true,
 }));
 app.use(express.json());
@@ -57,7 +57,7 @@ app.get("/health", (req, res) => {
 const server = http.createServer(app);
 setupWebSocket(server);
 
-const PORT = process.env.PROD_PORT || 8080;
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`http&ws-backend server running on port ${PORT}`);
 }).on("error", (err) => {

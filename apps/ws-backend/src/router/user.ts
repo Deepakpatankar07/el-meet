@@ -92,7 +92,13 @@ router.post("/signin", async (req, res) => {
       });
       return;
     }
-
+    if(JWT_PASSWORD === undefined) {
+      res.status(500).json({
+        message: "JWT_PASSWORD is not defined",
+      });
+      return;
+    }
+    
     const token = jwt.sign({ userId: user.id }, JWT_PASSWORD);
 
     res.status(200).json({

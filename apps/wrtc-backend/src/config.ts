@@ -1,5 +1,7 @@
 import os from 'os';
 import { types } from 'mediasoup';
+import dotenv from "dotenv";
+dotenv.config();
 
 const ifaces = os.networkInterfaces();
 
@@ -22,7 +24,7 @@ const getLocalIp = (): string => {
 
 export default {
   listenIp: '0.0.0.0',
-  listenPort: 8000,
+  listenPort: Number(process.env.PORT) || 8080,
   mediasoup: {
     numWorkers: Math.max(os.cpus().length, 1),
     worker: {

@@ -17,7 +17,7 @@ import prisma from "@repo/db/client";
 dotenv.config();
 
 // JWT Secret (should be in environment variables)
-const JWT_SECRET = process.env.JWT_SECRET || "superSecret";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Rate limiting for Socket.IO events
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
@@ -75,7 +75,7 @@ app.use(
 // Restrict CORS to your frontend domain in production
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: process.env.FRONTEND_URL,
     credentials: true,
   })
 );
@@ -83,7 +83,7 @@ app.use(
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: process.env.FRONTEND_URL,
     credentials: true,
   },
   pingInterval: 25000, // Send ping every 25 seconds
@@ -132,7 +132,7 @@ io.use((socket: CustomSocket, next) => {
   const token = socket.handshake.auth.token;
   console.log("Socket connection token:", socket.handshake.auth.token);
 
-  if (!token || typeof token !== "string") {
+  if (!token || typeof token !== "string" || JWT_SECRET === undefined) {
     return next(
       new Error("Authentication error: No token provided or invalid token type")
     );

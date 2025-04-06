@@ -9,9 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0 # Fetch all history for all branches and tags
+        uses: actions/checkout@v2
 
       - name: Docker login
         uses: docker/login-action@v2
@@ -26,3 +24,10 @@ jobs:
           file: ./docker/server-wrtc/Dockerfile
           push: true
           tags: iamdeepakpatankar/elmeet-wrtc-backend:${{ github.sha }}
+          build-args: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+      - run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key
+          mkdir -p /home/runner/.ssh
+          chmod 700 /home/runner/ssh_key
+          ssh -o StrictHostKeyChecking=no -i ~/ssh_key root@64.227.184.155 -t "docker stop elmeet-wrtc-backend || true && docker run --name elmeet-wrtc-backend -d -p 8000:8000 -e JWT_SECRET=${{ secrets.JWT_PASSWORD }} -e FRONTEND_URL=${{ secrets.FRONTEND_URL }} -e PORT=${{ secrets.WRTC_PORT }} -e DATABASE_URL=${{ secrets.DATABASE_URL }} --restart unless-stopped iamdeepakpatankar/elmeet-wrtc-backend:${{ github.sha }}"
