@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
 
   ws-backend:
-    image: iamdeepakpatankar/elmeet-ws-backend:${{ github.sha }}
+    image: iamdeepakpatankar/elmeet-ws-backend:${IMAGE_TAG}
     container_name: elmeet-ws-backend
     pull_policy: always
     ports:

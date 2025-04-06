@@ -28,7 +28,9 @@ jobs:
             NEXT_PUBLIC_WRTC_BACKEND_URL=${{ secrets.WRTC_BACKEND_URL }}
             NEXT_PUBLIC_WS_BACKEND_URL=${{ secrets.WS_BACKEND_URL }}
             NEXT_PUBLIC_WebSocket_URL=${{ secrets.WEBSOCKET_URL }}
-      - run: |
+
+      - name: Deploy to the VM      
+        run: |
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key
           mkdir -p /home/runner/.ssh
           chmod 700 /home/runner/ssh_key

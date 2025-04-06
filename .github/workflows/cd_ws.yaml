@@ -27,9 +27,15 @@ jobs:
           build-args: |
             DATABASE_URL=${{ secrets.DATABASE_URL }}
 
+      - name: Set up SSH
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key
+          mkdir -p /home/runner/.ssh
+          chmod 700 /home/runner/ssh_key
+
       - name: Replace github.sha in docker-compose-ws.yml
         run: |
-          sed -i "s/\${{ github.sha }}/${{ github.sha }}/g" docker-compose-ws.yml
+          sed -i "s/\${IMAGE_TAG}/${{ github.sha }}/g" docker-compose-ws.yml
 
       - name: Create .env file for Docker Compose
         run: |
@@ -45,12 +51,9 @@ jobs:
 
       - name: Deploy to the VM
         run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key
-          mkdir -p /home/runner/.ssh
-          chmod 700 /home/runner/ssh_key
           # Copy docker-compose-ws.yml to Droplet
           scp -o StrictHostKeyChecking=no -i ~/ssh_key docker-compose-ws.yml root@64.227.184.155:/root/docker-compose-ws.yml
           # Copy .env file to Droplet
           scp -o StrictHostKeyChecking=no -i ~/ssh_key .env root@64.227.184.155:/root/.env
           # Deploy using docker-compose
-          ssh -o StrictHostKeyChecking=no -i ~/ssh_key root@64.227.184.155 -t "docker-compose -f /root/docker-compose-ws.yml down && docker-compose -f /root/docker-compose-ws.yml up -d"
+          ssh -o StrictHostKeyChecking=no -i ~/ssh_key root@64.227.184.155 -t "docker compose -f /root/docker-compose-ws.yml down && docker compose -f /root/docker-compose-ws.yml up -d"
