@@ -128,7 +128,7 @@ export default class RoomClient extends EventEmitter {
 
     try {
       await this.socket.request('createRoom', { room_id });
-      // console.log(`Room ${room_id} created successfully`);
+      console.log(`wrtc-vcall : Room ${room_id} created successfully`);
     } catch (err) {
       console.error('Create room error:', err);
     }
@@ -138,17 +138,17 @@ export default class RoomClient extends EventEmitter {
     this.socket
       .request('join', { email, room_id })
       .then(async (e) => {
-        console.log('Joined to room', e);
+        console.log('wrtc-vcall :Joined to room', e);
 
         const data = await this.socket.request('getRouterRtpCapabilities');
-        console.log('getRouterRtpCapabilities:', data);
+        console.log('wrtc-vcall :getRouterRtpCapabilities:', data);
 
         const device = await this.loadDevice(data);
-        console.log("device", device);
+        console.log("wrtc-vcall :device", device);
 
         this.device = device;
         await this.initTransports(device);
-        console.log("initTransports successfull");
+        console.log("wrtc-vcall :initTransports successfull");
         
         this.socket.emit('getProducers');
       })
@@ -187,9 +187,9 @@ export default class RoomClient extends EventEmitter {
         forceTcp: false,
         rtpCapabilities: device.rtpCapabilities,
       });
-      // console.log("createWebRtcTransport data:", data);
+      console.log("wrtc-vcall :createWebRtcTransport data:", data);
       if (data.error) {
-        console.error("createWebRtcTransport data error:", data.error);
+        console.error("wrtc-vcall :createWebRtcTransport data error:", data.error);
         return;
       }
   
@@ -288,12 +288,12 @@ export default class RoomClient extends EventEmitter {
 
   private initSockets(): void {
     this.socket.on('consumerClosed', ({ consumer_id }) => {
-      // console.log('Closing consumer:', consumer_id);
+      console.log('wrtc-vcall :Closing consumer:', consumer_id);
       this.removeConsumer(consumer_id);
     });
 
     this.socket.on('newProducers', async (data) => {
-      // console.log('New producers', data);
+      console.log('wrtc-vcall :New producers', data);
       for (const { producer_id } of data) {
         await this.consume(producer_id);
       }
@@ -344,11 +344,11 @@ export default class RoomClient extends EventEmitter {
     }
 
     if (this.producerLabel.has(type)) {
-      // console.log('Producer already exists for this type ' + type);
+      console.log('wrtc-vcall :Producer already exists for this type ' + type);
       return;
     }
 
-    // console.log('Mediacontraints:', mediaConstraints);
+    console.log('wrtc-vcall :Mediacontraints:', mediaConstraints);
     let stream: MediaStream;
     try {
       try {
@@ -359,12 +359,12 @@ export default class RoomClient extends EventEmitter {
         console.error("Failed to access media devices:", error);
         return;
       }
-      // console.log(navigator.mediaDevices.getSupportedConstraints());
+      // console.log("wrtc-vcall :",navigator.mediaDevices.getSupportedConstraints());
 
       const track = audio ? stream.getAudioTracks()[0] : stream.getVideoTracks()[0];
       const params: ProducerOptions = { track };
 
-      // console.log("Params:", params);
+      console.log("wrtc-vcall :Params:", params);
 
       if (!audio && !screen) {
         params.encodings = [
@@ -379,13 +379,13 @@ export default class RoomClient extends EventEmitter {
         throw new Error("this producerTransport is null");
       }
 
-      // console.log("this.producerTransport", this.producerTransport);
+      console.log("wrtc-vcall :this.producerTransport", this.producerTransport);
       const producer = await this.producerTransport.produce(params);
       if (!producer) {
         throw new Error("No producer present !!");
       }
 
-      // console.log('Producer', producer);
+      console.log('wrtc-vcall :Producer', producer);
 
       this.producers.set(producer.id, producer);
 
@@ -512,12 +512,12 @@ export default class RoomClient extends EventEmitter {
 
   public closeProducer(type: string): void {
     if (!this.producerLabel.has(type)) {
-      // console.log('There is no producer for this type ' + type);
+      console.log('wrtc-vcall :There is no producer for this type ' + type);
       return;
     }
   
     const producer_id = this.producerLabel.get(type)!;
-    // console.log('Close producer', producer_id);
+    console.log('wrtc-vcall :Close producer', producer_id);
   
     this.socket.emit('producerClosed', { producer_id });
   
@@ -548,7 +548,7 @@ export default class RoomClient extends EventEmitter {
   
   public pauseProducer(type: string): void {
     if (!this.producerLabel.has(type)) {
-      // console.log('There is no producer for this type ' + type);
+      console.log('wrtc-vcall :There is no producer for this type ' + type);
       return;
     }
 
@@ -558,7 +558,7 @@ export default class RoomClient extends EventEmitter {
 
   public resumeProducer(type: string): void {
     if (!this.producerLabel.has(type)) {
-      // console.log('There is no producer for this type ' + type);
+      console.log('wrtc-vcall :There is no producer for this type ' + type);
       return;
     }
 

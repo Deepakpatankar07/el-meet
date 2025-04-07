@@ -42,12 +42,12 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
     setLoadingHistory(true);
 
     if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log("Fetching history with cursor:", cursor);
+      // console.log("Fetching history with cursor:", cursor);
       ws.send(
         JSON.stringify({ action: "getHistory", room, cursor, limit: 20 })
       );
     } else {
-      console.log("WebSocket not ready, retrying later...");
+      console.log("ws-chat : WebSocket not ready, retrying later...");
       setTimeout(fetchHistory, 1000);
     }
   };
@@ -55,13 +55,13 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
     return new Promise<void>((resolve) => {
-      console.log("Closing WebSocket...");
+      console.log("ws-chat : Closing WebSocket...");
       if(isHost){
         const EndMeeting = { action: "endmeeting", room, email };
         ws.send(JSON.stringify(EndMeeting));
       }
       ws.onclose = () => {
-        console.log("WebSocket closed");
+        console.log("ws-chat : WebSocket closed");
         resolve(); // ✅ Resolve the Promise once closed
       };
 
@@ -99,14 +99,14 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
 
   useEffect(() => {
     if (!email || !room || loading) {
-      console.log("Missing email, room or loading");
+      console.log("ws-chat : Missing email, room or loading");
       return;
     }
 
-    console.log("WebSocket assigned:", ws);
+    // console.log("WebSocket assigned:", ws);
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.log("WebSocket not ready");
+      console.log("ws-chat : WebSocket not ready");
       return;
     }
 
@@ -121,12 +121,12 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
     fetchInitialHistory();
 
     ws.onopen = () => {
-      console.log("WebSocket connected for room:", room);
+      console.log("ws-chat : WebSocket connected for room:", room);
     };
 
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
-      console.log("Message received:", message);
+      // console.log("Message received:", message);
 
       switch (message.event) {
         case "message":
@@ -134,7 +134,7 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
           break;
 
         case "endmeeting":
-          console.log("Meeting Ended");
+          console.log("ws-chat : Meeting Ended");
           break;
 
         case "status":
@@ -190,16 +190,16 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
           break;
 
         case "error":
-          console.error("WebSocket Error:", message.error);
+          console.error("ws-chat : WebSocket Error:", message.error);
           break;
 
         default:
-          console.log("Unknown event:", message.event);
+          // console.log("Unknown event:", message.event);
       }
     };
 
     ws.onerror = (error) => {
-      console.error("WebSocket Error:", error);
+      console.error("ws-chat : WebSocket Error:", error);
     };
 
     const heartbeatInterval = setInterval(() => {
@@ -210,7 +210,7 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
 
     return () => {
       clearInterval(heartbeatInterval);
-      console.log("Cleaning up WebSocket for room:", room);
+      console.log("ws-chat : Cleaning up WebSocket for room:", room);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room, ws, email, loading]);
@@ -218,7 +218,7 @@ const Chat = forwardRef<ChatRef>((_, ref) => {
   const sendMessage = () => {
     if (ws && ws.readyState === WebSocket.OPEN && input.trim()) {
       const data = { action: "message", room, email, content: input.trim() };
-      console.log("Sending message:", JSON.stringify(data));
+      // console.log("Sending message:", JSON.stringify(data));
       ws.send(JSON.stringify(data));
       setInput("");
     }
