@@ -26,7 +26,7 @@ jobs:
           tags: iamdeepakpatankar/elmeet-wrtc-backend:${{ github.sha }}
           build-args: |
             DATABASE_URL=${{ secrets.DATABASE_URL }}
-            
+
       - name: Deploy to the VM      
         run: |
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key

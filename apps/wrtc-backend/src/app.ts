@@ -13,6 +13,7 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import prisma from "@repo/db/client";
 
+
 // Load environment variables
 dotenv.config();
 
@@ -81,14 +82,7 @@ app.use(
 );
 
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL,
-    credentials: true,
-  },
-  pingInterval: 25000, // Send ping every 25 seconds
-  pingTimeout: 5000, // If no pong response within 5 seconds, consider disconnected
-});
+const io = new Server(server, { cors: { origin: process.env.FRONTEND_URL, credentials: true }, pingInterval: 25000, pingTimeout: 5000, transports: ["websocket"] });
 
 // Basic health check endpoint
 app.get("/health", (req, res) => {
