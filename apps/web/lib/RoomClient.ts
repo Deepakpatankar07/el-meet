@@ -286,6 +286,7 @@ export default class RoomClient extends EventEmitter {
   //   }
   // }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async initTransports(device: any): Promise<void> {
     // STUN and TURN servers configuration
     const iceServers = [
@@ -306,7 +307,7 @@ export default class RoomClient extends EventEmitter {
       }
 
       this.producerTransport = device.createSendTransport({ ...data, iceServers });
-
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.producerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
         try {
           await this.socket.request('connectTransport', {
@@ -319,6 +320,7 @@ export default class RoomClient extends EventEmitter {
         }
       });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.producerTransport.on('produce', async ({ kind, rtpParameters }: any, callback: any, errback: any) => {
         try {
           const { producer_id } = await this.socket.request('produce', {
@@ -360,6 +362,7 @@ export default class RoomClient extends EventEmitter {
 
       this.consumerTransport = device.createRecvTransport({ ...data, iceServers });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.consumerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
         try {
           await this.socket.request('connectTransport', {
