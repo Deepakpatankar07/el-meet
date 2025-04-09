@@ -3,8 +3,8 @@ services:
   wrtc-backend:
     image: iamdeepakpatankar/elmeet-wrtc-backend:${IMAGE_TAG}
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    # ports:
+    #   - "8000:8000"
     environment:
       - JWT_SECRET=${JWT_PASSWORD}
       - FRONTEND_URL=${FRONTEND_URL}
