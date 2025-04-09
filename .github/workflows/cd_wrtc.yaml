@@ -1,3 +1,42 @@
+# name: Continuous Deployment (Prod) for WebRTC Backend
+# on:
+#   push:
+#     branches:
+#       - master
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v2
+
+#       - name: Docker login
+#         uses: docker/login-action@v2
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+#       - name: Build and push Docker image
+#         uses: docker/build-push-action@v4
+#         with:
+#           context: .
+#           file: ./docker/server-wrtc/Dockerfile
+#           push: true
+#           tags: iamdeepakpatankar/elmeet-wrtc-backend:${{ github.sha }}
+#           build-args: |
+#             DATABASE_URL=${{ secrets.DATABASE_URL }}
+
+#       - name: Deploy to the VM      
+#         run: |
+#           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key
+#           mkdir -p /home/runner/.ssh
+#           chmod 700 /home/runner/ssh_key
+#           ssh -o StrictHostKeyChecking=no -i ~/ssh_key root@64.227.184.155 -t "docker stop elmeet-wrtc-backend || true && docker run --name elmeet-wrtc-backend -d -p 8000:8000 -e JWT_SECRET=${{ secrets.JWT_PASSWORD }} -e FRONTEND_URL=${{ secrets.FRONTEND_URL }} -e PORT=${{ secrets.WRTC_PORT }} -e DATABASE_URL=${{ secrets.DATABASE_URL }} --restart unless-stopped iamdeepakpatankar/elmeet-wrtc-backend:${{ github.sha }}"
+
+
+
+
 name: Continuous Deployment (Prod) for WebRTC Backend
 on:
   push:
@@ -27,9 +66,47 @@ jobs:
           build-args: |
             DATABASE_URL=${{ secrets.DATABASE_URL }}
 
-      - name: Deploy to the VM      
+      - name: Set up SSH
         run: |
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/ssh_key
           mkdir -p /home/runner/.ssh
           chmod 700 /home/runner/ssh_key
-          ssh -o StrictHostKeyChecking=no -i ~/ssh_key root@64.227.184.155 -t "docker stop elmeet-wrtc-backend || true && docker run --name elmeet-wrtc-backend -d -p 8000:8000 -e JWT_SECRET=${{ secrets.JWT_PASSWORD }} -e FRONTEND_URL=${{ secrets.FRONTEND_URL }} -e PORT=${{ secrets.WRTC_PORT }} -e DATABASE_URL=${{ secrets.DATABASE_URL }} --restart unless-stopped iamdeepakpatankar/elmeet-wrtc-backend:${{ github.sha }}"
+
+      - name: Replace github.sha in docker-compose-wrtc.yml
+        run: |
+          sed -i "s/\${IMAGE_TAG}/${{ github.sha }}/g" docker-compose-wrtc.yml
+
+      - name: Create .env file for Docker Compose
+        run: |
+          cat << 'EOF' > .env
+          WRTC_PORT=${{ secrets.WRTC_PORT }}
+          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          JWT_PASSWORD=${{ secrets.JWT_PASSWORD }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          TURN_USER=${{ secrets.TURN_USER }}
+          TURN_PASS=${{ secrets.TURN_PASS }}
+          EOF
+
+      - name: Create turnserver.conf
+        run: |
+          cat << 'EOF' > turnserver.conf
+          listening-port=3478
+          tls-listening-port=5349
+          min-port=49152
+          max-port=65535
+          user=${TURN_USER}:${TURN_PASS}
+          realm=elmeet-wrtc.deepakpatankar.tech
+          EOF
+          sed -i "s/\${TURN_USER}/${{ secrets.TURN_USER }}/g" turnserver.conf
+          sed -i "s/\${TURN_PASS}/${{ secrets.TURN_PASS }}/g" turnserver.conf
+
+      - name: Deploy to the VM
+        run: |
+          # Copy docker-compose-wrtc.yml to Droplet
+          scp -o StrictHostKeyChecking=no -i ~/ssh_key docker-compose-wrtc.yml root@64.227.184.155:/root/docker-compose-wrtc.yml
+          # Copy .env file to Droplet
+          scp -o StrictHostKeyChecking=no -i ~/ssh_key .env root@64.227.184.155:/root/.env
+          # Copy turnserver.conf to Droplet
+          scp -o StrictHostKeyChecking=no -i ~/ssh_key turnserver.conf root@64.227.184.155:/root/turnserver.conf
+          # Deploy using docker-compose
+          ssh -o StrictHostKeyChecking=no -i ~/ssh_key root@64.227.184.155 -t "docker compose -f /root/docker-compose-wrtc.yml down && docker compose -f /root/docker-compose-wrtc.yml up -d"

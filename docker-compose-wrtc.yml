@@ -1,0 +1,46 @@
+version: '3'
+services:
+  wrtc-backend:
+    image: iamdeepakpatankar/elmeet-wrtc-backend:${IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - JWT_SECRET=${JWT_PASSWORD}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - PORT=${WRTC_PORT}
+      - DATABASE_URL=${DATABASE_URL}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+        reservations:
+          cpus: "0.2"
+          memory: 256m
+    networks:
+      - elmeet-network
+
+  turnserver:
+    image: coturn/coturn
+    restart: unless-stopped
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+    environment:
+      - TURN_PORT=3478
+      - TURN_USER=${TURN_USER}
+      - TURN_PASS=${TURN_PASS}
+      - TURN_REALM=elmeet-wrtc.deepakpatankar.tech
+      - TURN_MIN_PORT=49152
+      - TURN_MAX_PORT=65535
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - elmeet-network
+
+networks:
+  elmeet-network:
+    driver: bridge

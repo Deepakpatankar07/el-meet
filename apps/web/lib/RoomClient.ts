@@ -175,9 +175,121 @@ export default class RoomClient extends EventEmitter {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // private async initTransports(device: any): Promise<void> {
+  //   // STUN servers configuration
+  //   const iceServers = [
+  //     { urls: 'stun:stun.l.google.com:19302' },
+  //     { urls: 'stun:stun1.l.google.com:19302' },
+  //   ];
+  //   // Initialize producerTransport
+  //   {
+  //     const data = await this.socket.request('createWebRtcTransport', {
+  //       forceTcp: false,
+  //       rtpCapabilities: device.rtpCapabilities,
+  //     });
+  //     console.log("wrtc-vcall :createWebRtcTransport data:", data);
+  //     if (data.error) {
+  //       console.error("wrtc-vcall :createWebRtcTransport data error:", data.error);
+  //       return;
+  //     }
+  
+  //     this.producerTransport = device.createSendTransport({ ...data, iceServers, });
+
+  //     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //     this.producerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
+  //       try {
+  //         await this.socket.request('connectTransport', {
+  //           dtlsParameters,
+  //           transport_id: data.id,
+  //         });
+  //         callback();
+  //       } catch (err) {
+  //         errback(err);
+  //       }
+  //     });
+
+  //     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //     this.producerTransport.on('produce', async ({ kind, rtpParameters }: any, callback: any, errback: any) => {
+  //       try {
+  //         const { producer_id } = await this.socket.request('produce', {
+  //           producerTransportId: this.producerTransport.id,
+  //           kind,
+  //           rtpParameters,
+  //         });
+  //         callback({ id: producer_id });
+  //       } catch (err) {
+  //         errback(err);
+  //       }
+  //     });
+
+     
+  //     this.producerTransport.on('connectionstatechange', (state: string) => {
+  //       switch (state) {
+  //         case 'connecting':
+  //           break;
+  
+  //         case 'connected':
+  //           break;
+  
+  //         case 'failed':
+  //           this.producerTransport!.close();
+  //           break;
+  
+  //         default:
+  //           break;
+  //       }
+  //     });
+  //   }
+  
+  //   // Initialize consumerTransport
+  //   {
+  //     const data = await this.socket.request('createWebRtcTransport', {
+  //       forceTcp: false,
+  //     });
+  
+  //     if (data.error) {
+  //       console.error(data.error);
+  //       return;
+  //     }
+  
+  //     this.consumerTransport = device.createRecvTransport({ ...data, iceServers, });
+
+  //     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //     this.consumerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
+  //       try {
+  //         await this.socket.request('connectTransport', {
+  //           dtlsParameters,
+  //           transport_id: data.id,
+  //         });
+  //         callback();
+  //       } catch (err) {
+  //         errback(err);
+  //       }
+  //     });
+  
+  //     this.consumerTransport.on('connectionstatechange', (state: string) => {
+  //       switch (state) {
+  //         case 'connecting':
+  //           break;
+  
+  //         case 'connected':
+  //           break;
+  
+  //         case 'failed':
+  //           this.consumerTransport!.close();
+  //           break;
+  
+  //         default:
+  //           break;
+  //       }
+  //     });
+  //   }
+  // }
+
   private async initTransports(device: any): Promise<void> {
-    // STUN servers configuration
+    // STUN and TURN servers configuration
     const iceServers = [
+      { urls: process.env.NEXT_PUBLIC_TURNSERVER_URL, username: process.env.NEXT_PUBLIC_TURN_USER, credential: process.env.NEXT_PUBLIC_TURN_PASS },
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
     ];
@@ -192,10 +304,9 @@ export default class RoomClient extends EventEmitter {
         console.error("wrtc-vcall :createWebRtcTransport data error:", data.error);
         return;
       }
-  
-      this.producerTransport = device.createSendTransport({ ...data, iceServers, });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.producerTransport = device.createSendTransport({ ...data, iceServers });
+
       this.producerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
         try {
           await this.socket.request('connectTransport', {
@@ -208,7 +319,6 @@ export default class RoomClient extends EventEmitter {
         }
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.producerTransport.on('produce', async ({ kind, rtpParameters }: any, callback: any, errback: any) => {
         try {
           const { producer_id } = await this.socket.request('produce', {
@@ -222,39 +332,34 @@ export default class RoomClient extends EventEmitter {
         }
       });
 
-     
       this.producerTransport.on('connectionstatechange', (state: string) => {
         switch (state) {
           case 'connecting':
             break;
-  
           case 'connected':
             break;
-  
           case 'failed':
             this.producerTransport!.close();
             break;
-  
           default:
             break;
         }
       });
     }
-  
+
     // Initialize consumerTransport
     {
       const data = await this.socket.request('createWebRtcTransport', {
         forceTcp: false,
       });
-  
+
       if (data.error) {
         console.error(data.error);
         return;
       }
-  
-      this.consumerTransport = device.createRecvTransport({ ...data, iceServers, });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.consumerTransport = device.createRecvTransport({ ...data, iceServers });
+
       this.consumerTransport.on('connect', async ({ dtlsParameters }: any, callback: any, errback: any) => {
         try {
           await this.socket.request('connectTransport', {
@@ -266,25 +371,22 @@ export default class RoomClient extends EventEmitter {
           errback(err);
         }
       });
-  
+
       this.consumerTransport.on('connectionstatechange', (state: string) => {
         switch (state) {
           case 'connecting':
             break;
-  
           case 'connected':
             break;
-  
           case 'failed':
             this.consumerTransport!.close();
             break;
-  
           default:
             break;
         }
       });
     }
-  }
+}
 
   private initSockets(): void {
     this.socket.on('consumerClosed', ({ consumer_id }) => {
