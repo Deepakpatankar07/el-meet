@@ -290,10 +290,11 @@ export default class RoomClient extends EventEmitter {
   private async initTransports(device: any): Promise<void> {
     // STUN and TURN servers configuration
     const iceServers = [
-      { urls: process.env.NEXT_PUBLIC_TURNSERVER_URL, username: process.env.NEXT_PUBLIC_TURN_USER, credential: process.env.NEXT_PUBLIC_TURN_PASS },
+      { urls: process.env.NEXT_PUBLIC_TURNSERVER_URL|| ['stun:stun.l.google.com:19302'], username: process.env.NEXT_PUBLIC_TURN_USER || undefined, credential: process.env.NEXT_PUBLIC_TURN_PASS || undefined },
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-    ];
+    ].filter(server => server.urls && server.urls.length > 0);
+    console.log('ICE Servers:', iceServers);
     // Initialize producerTransport
     {
       const data = await this.socket.request('createWebRtcTransport', {

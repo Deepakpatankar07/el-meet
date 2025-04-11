@@ -28,6 +28,9 @@ jobs:
             NEXT_PUBLIC_WRTC_BACKEND_URL=${{ secrets.WRTC_BACKEND_URL }}
             NEXT_PUBLIC_WS_BACKEND_URL=${{ secrets.WS_BACKEND_URL }}
             NEXT_PUBLIC_WebSocket_URL=${{ secrets.WEBSOCKET_URL }}
+            NEXT_PUBLIC_TURNSERVER_URL=${{ secrets.TURNSERVER_URL }}
+            NEXT_PUBLIC_TURN_USER=${{ secrets.TURN_USER }}
+            NEXT_PUBLIC_TURN_PASS=${{ secrets.TURN_PASS }}
 
       - name: Deploy to the VM      
         run: |
